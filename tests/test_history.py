@@ -79,6 +79,11 @@ def test_historical_queries_and_ingestion_validation(tmp_path):
     assert dominance[0]["player_id"] == "/player/a"
     assert dominance[0]["years_at_number_one"] == 1
 
+    peaks = history.all_time_peaks(rating="match", limit=2)
+    assert len(peaks) == 2
+    assert peaks[0]["player_id"] == "/player/a"
+    assert peaks[0]["rating"] >= peaks[1]["rating"]
+
 
 def test_input_order_does_not_affect_distinct_date_results(tmp_path):
     source = tmp_path / "snookerdb.db"

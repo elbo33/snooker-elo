@@ -20,10 +20,19 @@ const playersEl = document.querySelector("#players");
 const detailEl = document.querySelector("#player-detail");
 const compareListEl = document.querySelector("#compare-list");
 const dominanceEl = document.querySelector("#dominance");
+const peaksEl = document.querySelector("#peaks");
 const historyChart = document.querySelector("#history-chart");
 const compareChart = document.querySelector("#compare-chart");
 const eraChart = document.querySelector("#era-chart");
 const palette = ["#13795b", "#2f66b3", "#a56a21", "#7f4da0", "#b23b35", "#44515f", "#0f766e", "#8a5a44"];
+const defaultLegends = [
+  "Ronnie O'Sullivan",
+  "Stephen Hendry",
+  "Steve Davis",
+  "John Higgins",
+  "Mark Selby",
+  "Judd Trump",
+];
 
 dateInput.value = new Date().toISOString().slice(0, 10);
 
@@ -47,7 +56,10 @@ window.addEventListener("resize", () => {
 
 async function refresh() {
   await loadMetadata();
-  await Promise.all([loadRankings(), loadEras()]);
+  await Promise.all([loadRankings(), loadEras(), loadPeaks()]);
+  if (!state.seeded) {
+    await seedDefaultLegends();
+  }
   await renderCompare();
   if (state.selectedPlayer) {
     await loadPlayer(state.selectedPlayer.player_id, state.selectedPlayer.player_name);
@@ -102,9 +114,7 @@ async function loadRankings() {
     });
   });
 
-  if (!state.seeded) {
-    data.slice(0, 4).forEach((row) => addCompare(row.player_id, row.player_name, false));
-    state.seeded = true;
+  if (!state.selectedPlayer && data[0]) {
     await loadPlayer(data[0].player_id, data[0].player_name);
   }
 }
@@ -288,6 +298,49 @@ async function loadEras() {
         `,
       )
       .join("") || `<div class="empty">No dominance data</div>`;
+}
+
+async function loadPeaks() {
+  const data = await api(`/api/peaks?rating=${ratingInput.value}&limit=6`);
+  if (data.error) {
+    peaksEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  peaksEl.innerHTML =
+    data
+      .map(
+        (row, index) => `
+          <article class="peak-card">
+            <div>
+              <div class="peak-rank">Peak ${index + 1}</div>
+              <strong>${formatRating(row.rating)}</strong>
+              <span>${ratingInput.value === "frame" ? "Frame Elo" : "Match Elo"}</span>
+            </div>
+            <div>
+              <b>${escapeHtml(row.player_name)}</b>
+              <span>${trimDate(row.date)}</span>
+            </div>
+          </article>
+        `,
+      )
+      .join("") || `<div class="empty">No peak data</div>`;
+}
+
+async function seedDefaultLegends() {
+  const selected = [];
+  for (const name of defaultLegends) {
+    const matches = await api(`/api/players?search=${encodeURIComponent(name)}&limit=8`);
+    if (!Array.isArray(matches)) {
+      continue;
+    }
+    const exact = matches.find((player) => player.player_name.toLowerCase() === name.toLowerCase());
+    const player = exact || matches[0];
+    if (player && !selected.some((item) => item.player_id === player.player_id)) {
+      selected.push(player);
+    }
+  }
+  selected.forEach((player) => addCompare(player.player_id, player.player_name, false));
+  state.seeded = true;
 }
 
 async function api(path) {

@@ -146,6 +146,7 @@ h1 {
 
 .control-band,
 .compare-panel,
+.peaks-panel,
 .eras-panel {
   grid-column: 1 / -1;
 }
@@ -223,10 +224,51 @@ span {
 
 .search-results,
 #player-detail,
-.dominance-list {
+.dominance-list,
+.peak-grid {
   display: grid;
   gap: 8px;
   padding: 0 18px 18px;
+}
+
+.peak-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 18px;
+}
+
+.peak-card {
+  min-height: 142px;
+  display: grid;
+  align-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background:
+    linear-gradient(135deg, rgba(15, 111, 84, 0.10), transparent 45%),
+    #fbfcfa;
+}
+
+.peak-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: clamp(22px, 4vw, 34px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.peak-card span {
+  display: block;
+  font-size: 13px;
+}
+
+.peak-rank {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .chips {
@@ -390,6 +432,7 @@ tbody tr:hover {
   }
 
   .compare-panel,
+  .peaks-panel,
   .eras-panel,
   .control-band {
     grid-column: auto;
@@ -409,7 +452,8 @@ tbody tr:hover {
   }
 
   .metric-grid,
-  .dominance-list {
+  .dominance-list,
+  .peak-grid {
     grid-template-columns: 1fr;
   }
 

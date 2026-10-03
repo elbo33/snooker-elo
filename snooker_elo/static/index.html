@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Snooker Elo Archive</title>
+    <title>Who was really the best? | Snooker Elo Archive</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -14,10 +14,11 @@
       </nav>
 
       <div class="hero-content">
-        <p class="eyebrow">Historical ratings from 1907 to today</p>
-        <h1>Snooker Elo Archive</h1>
+        <p class="eyebrow">Snooker greatness through time</p>
+        <h1>Who was really the best?</h1>
         <p class="hero-copy">
-          Explore the rise, reign and rivalry of snooker's great eras through Match Elo and Frame Elo.
+          More than a century of professional snooker, two Elo systems, and one interactive history of peaks,
+          dynasties and rivalries.
         </p>
         <div class="hero-stats">
           <div>
@@ -65,8 +66,8 @@
       <section class="panel compare-panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow dark">Rivalries through time</p>
-            <h2>Elo Evolution</h2>
+            <p class="eyebrow dark">The Race for No.1</p>
+            <h2>What happens when the legends share one graph?</h2>
             <span id="meta"></span>
           </div>
           <form id="player-search" class="search">
@@ -79,11 +80,22 @@
         <canvas id="compare-chart" width="1200" height="460"></canvas>
       </section>
 
+      <section class="panel peaks-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow dark">Chapter I</p>
+            <h2>The Greatest Peaks</h2>
+            <span>Calculated from the selected rating system.</span>
+          </div>
+        </div>
+        <div id="peaks" class="peak-grid"></div>
+      </section>
+
       <section class="panel eras-panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow dark">Best in the world</p>
-            <h2>Yearly No.1 Timeline</h2>
+            <p class="eyebrow dark">Chapter II</p>
+            <h2>Dynasties: who controlled No.1?</h2>
             <span id="era-range"></span>
           </div>
         </div>

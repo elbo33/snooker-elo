@@ -185,6 +185,51 @@ class HistoricalRatings:
     def top_n_at(self, when: datetime | date | str, n: int = 10, rating: RatingKind = "match") -> list[RankingRow]:
         return self.rankings_at(when, rating=rating, limit=n)
 
+    def all_time_peaks(self, rating: RatingKind = "match", limit: int = 10) -> list[dict[str, object]]:
+        rating_column = _rating_column(rating)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                WITH ranked AS (
+                    SELECT
+                        player_id,
+                        player_name,
+                        played_at,
+                        match_elo_after,
+                        frame_elo_after,
+                        {rating_column} AS peak_rating,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY player_id
+                            ORDER BY {rating_column} DESC, played_at ASC, event_id ASC
+                        ) AS rn
+                    FROM rating_events
+                )
+                SELECT
+                    player_id,
+                    player_name,
+                    played_at,
+                    match_elo_after,
+                    frame_elo_after,
+                    peak_rating
+                FROM ranked
+                WHERE rn = 1
+                ORDER BY peak_rating DESC, played_at ASC, player_name ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "player_id": row["player_id"],
+                "player_name": row["player_name"],
+                "date": datetime.fromisoformat(row["played_at"]),
+                "rating": float(row["peak_rating"]),
+                "match_elo": float(row["match_elo_after"]),
+                "frame_elo": float(row["frame_elo_after"]),
+            }
+            for row in rows
+        ]
+
     def period_leaders(
         self,
         rating: RatingKind = "match",

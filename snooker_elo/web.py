@@ -82,6 +82,13 @@ def _handler_factory(db_path: Path):
                             limit=int(_param(params, "limit", "50")),
                         )
                     )
+                elif path == "/api/peaks":
+                    self._json(
+                        history.all_time_peaks(
+                            rating=_param(params, "rating", "match"),
+                            limit=int(_param(params, "limit", "10")),
+                        )
+                    )
                 elif path == "/api/players":
                     self._json(history.players(search=_param(params, "search", ""), limit=int(_param(params, "limit", "20"))))
                 elif path == "/api/player":

@@ -46,6 +46,12 @@ document.querySelector("#player-search").addEventListener("submit", async (event
   await searchPlayers(document.querySelector("#search").value);
 });
 
+document.querySelectorAll(".preset-player").forEach((button) => {
+  button.addEventListener("click", async () => {
+    await addPlayerByName(button.dataset.name);
+  });
+});
+
 window.addEventListener("resize", () => {
   renderCompare();
   loadEras();
@@ -56,6 +62,7 @@ window.addEventListener("resize", () => {
 
 async function refresh() {
   await loadMetadata();
+  renderEloExplainer();
   await Promise.all([loadRankings(), loadEras(), loadPeaks()]);
   if (!state.seeded) {
     await seedDefaultLegends();
@@ -160,6 +167,19 @@ async function searchPlayers(query) {
       await loadPlayer(button.dataset.id, button.dataset.name);
     });
   });
+}
+
+async function addPlayerByName(name) {
+  const matches = await api(`/api/players?search=${encodeURIComponent(name)}&limit=8`);
+  if (!Array.isArray(matches)) {
+    return;
+  }
+  const exact = matches.find((player) => player.player_name.toLowerCase() === name.toLowerCase());
+  const player = exact || matches[0];
+  if (player) {
+    addCompare(player.player_id, player.player_name);
+    await loadPlayer(player.player_id, player.player_name);
+  }
 }
 
 async function loadPlayer(playerId, playerName) {
@@ -343,6 +363,16 @@ async function seedDefaultLegends() {
   state.seeded = true;
 }
 
+function renderEloExplainer() {
+  const matchDelta = 24 * (1 - 0.5);
+  const tightFrameDelta = 4 * (10 - 19 * 0.5);
+  const dominantFrameDelta = 4 * (10 - 10 * 0.5);
+  document.querySelector("#match-tight").textContent = signed(matchDelta);
+  document.querySelector("#match-dom").textContent = signed(matchDelta);
+  document.querySelector("#frame-tight").textContent = signed(tightFrameDelta);
+  document.querySelector("#frame-dom").textContent = signed(dominantFrameDelta);
+}
+
 async function api(path) {
   const response = await fetch(path);
   return response.json();
@@ -374,6 +404,10 @@ function filterPoints(points) {
 
 function formatRating(value) {
   return Number.isFinite(value) ? Math.round(value).toString() : "-";
+}
+
+function signed(value) {
+  return `${value >= 0 ? "+" : ""}${Math.round(value)}`;
 }
 
 function trimDate(value) {

@@ -7,20 +7,38 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="hero">
+    <header class="hero" id="story">
       <nav class="nav">
-        <strong>Snooker Elo Archive</strong>
+        <strong>Snooker Elo</strong>
+        <div>
+          <a href="#story">Story</a>
+          <a href="#rivals">Rivalries</a>
+          <a href="#time-machine">Time Machine</a>
+          <a href="#elo">About Elo</a>
+        </div>
         <span id="status">Loading</span>
       </nav>
 
       <div class="hero-content">
-        <p class="eyebrow">Snooker greatness through time</p>
+        <p class="eyebrow">A history of snooker, according to Elo</p>
         <h1>Who was really the best?</h1>
         <p class="hero-copy">
-          More than a century of professional snooker, two Elo systems, and one interactive history of peaks,
-          dynasties and rivalries.
+          More than a century of professional snooker, reconstructed match by match.
         </p>
-        <div class="hero-stats">
+        <a class="story-link" href="#opening-question">Explore the history</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="opening-question" id="opening-question">
+        <div class="opening-lines">
+          <p>Hendry had the dominance.</p>
+          <p>O'Sullivan had the longevity.</p>
+          <p>Davis owned an era.</p>
+          <p>Trump is writing the next chapter.</p>
+        </div>
+        <h2>But who was actually strongest?</h2>
+        <div class="archive-stats">
           <div>
             <strong id="stat-matches">-</strong>
             <span>rated matches</span>
@@ -34,105 +52,178 @@
             <span>archive span</span>
           </div>
         </div>
-      </div>
-    </header>
-
-    <main class="dashboard">
-      <section class="control-band" aria-label="Analysis controls">
-        <form id="controls" class="controls">
-          <label>
-            Rating
-            <select id="rating">
-              <option value="match">Match Elo</option>
-              <option value="frame">Frame Elo</option>
-            </select>
-          </label>
-          <label>
-            Leaderboard Date
-            <input id="date" type="date" />
-          </label>
-          <label>
-            From
-            <input id="start-year" type="number" min="1900" max="2100" step="1" />
-          </label>
-          <label>
-            To
-            <input id="end-year" type="number" min="1900" max="2100" step="1" />
-          </label>
-          <button type="submit">Refresh</button>
-        </form>
       </section>
 
-      <section class="panel compare-panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow dark">The Race for No.1</p>
-            <h2>What happens when the legends share one graph?</h2>
-            <span id="meta"></span>
+      <section class="chapter chapter-peaks">
+        <div class="chapter-kicker">Chapter I</div>
+        <h2>The Great Peaks</h2>
+        <p class="chapter-question">At their absolute best, how high could greatness go?</p>
+        <div class="editorial-split">
+          <div class="photo-slot">
+            <span>Historical photography slot</span>
+            <strong>Insert licensed peak-era player image here</strong>
           </div>
-          <form id="player-search" class="search">
-            <input id="search" type="search" placeholder="Search player" />
-            <button type="submit">Add</button>
-          </form>
-        </div>
-        <div id="players" class="search-results"></div>
-        <div id="compare-list" class="chips"></div>
-        <canvas id="compare-chart" width="1200" height="460"></canvas>
-      </section>
-
-      <section class="panel peaks-panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow dark">Chapter I</p>
-            <h2>The Greatest Peaks</h2>
-            <span>Calculated from the selected rating system.</span>
+          <div class="chapter-copy">
+            <p>
+              For a brief moment, every great player reaches the point where nobody can touch him.
+            </p>
+            <p>
+              Elo turns that feeling into a traceable summit. The names below are calculated from the
+              selected rating system, not chosen by hand.
+            </p>
           </div>
         </div>
         <div id="peaks" class="peak-grid"></div>
       </section>
 
-      <section class="panel eras-panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow dark">Chapter II</p>
-            <h2>Dynasties: who controlled No.1?</h2>
-            <span id="era-range"></span>
-          </div>
+      <section class="chapter chapter-dynasties">
+        <div class="chapter-kicker">Chapter II</div>
+        <h2>The Dynasties</h2>
+        <p class="chapter-question">Who actually ruled the game?</p>
+
+        <div class="era-scenes">
+          <article class="era-scene">
+            <div class="era-year">1984</div>
+            <div>
+              <h3>Davis owned an era.</h3>
+              <p>For years, the rest of professional snooker was trying to catch him.</p>
+            </div>
+            <div class="photo-slot small">
+              <span>Steve Davis image slot</span>
+            </div>
+          </article>
+          <article class="era-scene">
+            <div class="era-year">1994</div>
+            <div>
+              <h3>Hendry stood alone.</h3>
+              <p>The gap had become enormous, and the graph begins to look less like form than rule.</p>
+            </div>
+            <div class="photo-slot small">
+              <span>Stephen Hendry image slot</span>
+            </div>
+          </article>
+          <article class="era-scene">
+            <div class="era-year">2001</div>
+            <div>
+              <h3>A new order.</h3>
+              <p>The Class of '92 turned the sport into a long argument about peak and longevity.</p>
+            </div>
+            <div class="photo-slot small">
+              <span>Class of '92 image slot</span>
+            </div>
+          </article>
         </div>
+
         <canvas id="era-chart" width="1200" height="240"></canvas>
         <div id="dominance" class="dominance-list"></div>
       </section>
 
-      <section class="panel leaderboard-panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow dark">Snapshot</p>
-            <h2>Leaderboard</h2>
-          </div>
+      <section class="chapter chapter-rivals" id="rivals">
+        <div class="chapter-kicker">Chapter III</div>
+        <h2>The Rivals</h2>
+        <p class="chapter-question">What happens when the greatest careers overlap?</p>
+        <div class="legend-picks">
+          <button type="button" class="preset-player" data-name="Ronnie O'Sullivan">Ronnie O'Sullivan</button>
+          <button type="button" class="preset-player" data-name="Stephen Hendry">Stephen Hendry</button>
+          <button type="button" class="preset-player" data-name="Steve Davis">Steve Davis</button>
+          <button type="button" class="preset-player" data-name="John Higgins">John Higgins</button>
+          <button type="button" class="preset-player" data-name="Mark Selby">Mark Selby</button>
+          <button type="button" class="preset-player" data-name="Judd Trump">Judd Trump</button>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Player</th>
-              <th>Match Elo</th>
-              <th>Frame Elo</th>
-              <th>Matches</th>
-            </tr>
-          </thead>
-          <tbody id="leaderboard"></tbody>
-        </table>
+        <form id="player-search" class="search">
+          <input id="search" type="search" placeholder="Put another legend on the table" />
+          <button type="submit">Add to the rivalry</button>
+        </form>
+        <div id="players" class="search-results"></div>
+        <div id="compare-list" class="chips"></div>
+        <p class="chart-note" id="meta"></p>
+        <canvas id="compare-chart" width="1200" height="460"></canvas>
       </section>
 
-      <section class="panel player-panel">
-        <div class="panel-head">
+      <section class="chapter chapter-elo" id="elo">
+        <div class="chapter-kicker">Chapter IV</div>
+        <h2>Two Ways to Measure Greatness</h2>
+        <p class="chapter-question">A 10-9 escape and a 10-0 demolition are both wins. Elo can remember the difference.</p>
+        <div class="elo-explainer">
           <div>
-            <p class="eyebrow dark">Career profile</p>
-            <h2>Player Focus</h2>
+            <div class="scoreline"><strong>10</strong><span>-</span><strong>9</strong></div>
+            <p>Match Elo sees a victory.</p>
+            <b id="match-tight">+12</b>
+            <span>Match Elo</span>
+            <b id="frame-tight">+2</b>
+            <span>Frame Elo</span>
+          </div>
+          <div>
+            <div class="scoreline"><strong>10</strong><span>-</span><strong>0</strong></div>
+            <p>Frame Elo sees dominance.</p>
+            <b id="match-dom">+12</b>
+            <span>Match Elo</span>
+            <b id="frame-dom">+20</b>
+            <span>Frame Elo</span>
           </div>
         </div>
-        <div id="player-detail"></div>
-        <canvas id="history-chart" width="760" height="280"></canvas>
+      </section>
+
+      <section class="chapter time-machine" id="time-machine">
+        <div class="chapter-kicker">Chapter V</div>
+        <h2>The Time Machine</h2>
+        <p class="chapter-question">Travel to a date and ask: who was the best player in the world?</p>
+
+        <section class="control-band" aria-label="Analysis controls">
+          <form id="controls" class="controls">
+            <label>
+              Rating
+              <select id="rating">
+                <option value="match">Match Elo</option>
+                <option value="frame">Frame Elo</option>
+              </select>
+            </label>
+            <label>
+              Travel to
+              <input id="date" type="date" />
+            </label>
+            <label>
+              From
+              <input id="start-year" type="number" min="1900" max="2100" step="1" />
+            </label>
+            <label>
+              To
+              <input id="end-year" type="number" min="1900" max="2100" step="1" />
+            </label>
+            <button type="submit">Refresh history</button>
+          </form>
+          <p id="era-range"></p>
+        </section>
+
+        <div class="time-grid">
+          <section class="leaderboard-panel">
+            <div class="section-title">
+              <span class="eyebrow dark">Historical snapshot</span>
+              <h3>Leaderboard</h3>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Match Elo</th>
+                  <th>Frame Elo</th>
+                  <th>Matches</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard"></tbody>
+            </table>
+          </section>
+
+          <section class="player-panel">
+            <div class="section-title">
+              <span class="eyebrow dark">Career chapter</span>
+              <h3>Player Focus</h3>
+            </div>
+            <div id="player-detail"></div>
+            <canvas id="history-chart" width="760" height="280"></canvas>
+          </section>
+        </div>
       </section>
     </main>
 

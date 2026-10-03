@@ -1,20 +1,26 @@
 const state = {
   selectedPlayer: null,
   compare: [],
+  seeded: false,
+  metadataLoaded: false,
 };
 
 const dateInput = document.querySelector("#date");
 const ratingInput = document.querySelector("#rating");
+const startYearInput = document.querySelector("#start-year");
+const endYearInput = document.querySelector("#end-year");
 const leaderboard = document.querySelector("#leaderboard");
 const statusText = document.querySelector("#status");
 const metaText = document.querySelector("#meta");
+const eraRange = document.querySelector("#era-range");
 const playersEl = document.querySelector("#players");
 const detailEl = document.querySelector("#player-detail");
 const compareListEl = document.querySelector("#compare-list");
-const compareEl = document.querySelector("#compare");
+const dominanceEl = document.querySelector("#dominance");
 const historyChart = document.querySelector("#history-chart");
 const compareChart = document.querySelector("#compare-chart");
-const palette = ["#157f63", "#315caa", "#9a4d16", "#7c3f98", "#b3261e", "#59636f"];
+const eraChart = document.querySelector("#era-chart");
+const palette = ["#13795b", "#2f66b3", "#a56a21", "#7f4da0", "#b23b35", "#44515f", "#0f766e", "#8a5a44"];
 
 dateInput.value = new Date().toISOString().slice(0, 10);
 
@@ -28,20 +34,18 @@ document.querySelector("#player-search").addEventListener("submit", async (event
   await searchPlayers(document.querySelector("#search").value);
 });
 
-document.querySelector("#clear-compare").addEventListener("click", () => {
-  state.compare = [];
-  renderCompare();
-});
-
 window.addEventListener("resize", () => {
+  renderCompare();
+  loadEras();
   if (state.selectedPlayer) {
     loadPlayer(state.selectedPlayer.player_id, state.selectedPlayer.player_name);
   }
-  renderCompare();
 });
 
 async function refresh() {
-  await Promise.all([loadMetadata(), loadRankings()]);
+  await loadMetadata();
+  await Promise.all([loadRankings(), loadEras()]);
+  await renderCompare();
   if (state.selectedPlayer) {
     await loadPlayer(state.selectedPlayer.player_id, state.selectedPlayer.player_name);
   }
@@ -55,17 +59,28 @@ async function loadMetadata() {
     return;
   }
   statusText.className = "";
-  statusText.textContent = `${data.usable_matches ?? 0} usable matches`;
+  statusText.textContent = `${Number(data.usable_matches ?? 0).toLocaleString()} usable matches`;
   metaText.textContent = `${trimDate(data.earliest_match)} to ${trimDate(data.latest_match)}`;
+  if (!startYearInput.value) {
+    startYearInput.value = trimDate(data.earliest_match).slice(0, 4);
+  }
+  if (!endYearInput.value) {
+    endYearInput.value = trimDate(data.latest_match).slice(0, 4);
+  }
+  if (!state.metadataLoaded && data.latest_match) {
+    dateInput.value = trimDate(data.latest_match);
+  }
+  state.metadataLoaded = true;
 }
 
 async function loadRankings() {
-  const data = await api(`/api/rankings?date=${dateInput.value}&rating=${ratingInput.value}&limit=50`);
+  const data = await api(`/api/rankings?date=${dateInput.value}&rating=${ratingInput.value}&limit=25`);
   leaderboard.innerHTML = "";
   if (data.error) {
     leaderboard.innerHTML = `<tr><td colspan="5" class="error">${escapeHtml(data.error)}</td></tr>`;
-    drawEmptyChart(historyChart, "No generated database");
     drawEmptyChart(compareChart, "No generated database");
+    drawEmptyChart(historyChart, "No generated database");
+    drawEmptyChart(eraChart, "No generated database");
     return;
   }
   if (!data.length) {
@@ -73,30 +88,35 @@ async function loadRankings() {
     return;
   }
 
-  leaderboard.innerHTML = data
-    .map(
-      (row) => `
-        <tr data-id="${escapeHtml(row.player_id)}" data-name="${escapeHtml(row.player_name)}">
-          <td>${row.rank}</td>
-          <td>${escapeHtml(row.player_name)}</td>
-          <td>${formatRating(row.match_elo)}</td>
-          <td>${formatRating(row.frame_elo)}</td>
-          <td>${row.matches_played}</td>
-        </tr>
-      `,
-    )
-    .join("");
-
+  leaderboard.innerHTML = data.map(leaderboardRow).join("");
   leaderboard.querySelectorAll("tr").forEach((row) => {
     row.addEventListener("click", async () => {
-      await loadPlayer(row.dataset.id, row.dataset.name);
       addCompare(row.dataset.id, row.dataset.name);
+      await loadPlayer(row.dataset.id, row.dataset.name);
     });
   });
+
+  if (!state.seeded) {
+    data.slice(0, 4).forEach((row) => addCompare(row.player_id, row.player_name, false));
+    state.seeded = true;
+    await loadPlayer(data[0].player_id, data[0].player_name);
+  }
+}
+
+function leaderboardRow(row) {
+  return `
+    <tr data-id="${escapeHtml(row.player_id)}" data-name="${escapeHtml(row.player_name)}">
+      <td>${row.rank}</td>
+      <td>${escapeHtml(row.player_name)}</td>
+      <td>${formatRating(row.match_elo)}</td>
+      <td>${formatRating(row.frame_elo)}</td>
+      <td>${row.matches_played}</td>
+    </tr>
+  `;
 }
 
 async function searchPlayers(query) {
-  const data = await api(`/api/players?search=${encodeURIComponent(query)}&limit=20`);
+  const data = await api(`/api/players?search=${encodeURIComponent(query)}&limit=12`);
   if (data.error) {
     playersEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
     return;
@@ -106,10 +126,12 @@ async function searchPlayers(query) {
       .map(
         (player) => `
           <div class="player-row">
-            <strong>${escapeHtml(player.player_name)}</strong>
-            <span>${player.matches_played} matches</span>
+            <div>
+              <strong>${escapeHtml(player.player_name)}</strong>
+              <span>${player.matches_played} matches</span>
+            </div>
             <button type="button" data-id="${escapeHtml(player.player_id)}" data-name="${escapeHtml(player.player_name)}">
-              Select
+              Add
             </button>
           </div>
         `,
@@ -118,8 +140,8 @@ async function searchPlayers(query) {
 
   playersEl.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", async () => {
-      await loadPlayer(button.dataset.id, button.dataset.name);
       addCompare(button.dataset.id, button.dataset.name);
+      await loadPlayer(button.dataset.id, button.dataset.name);
     });
   });
 }
@@ -171,36 +193,56 @@ async function loadPlayer(playerId, playerName) {
 
   drawSeriesChart(historyChart, [
     {
-      label: ratingInput.value === "frame" ? "Frame Elo" : "Match Elo",
-      color: ratingInput.value === "frame" ? palette[1] : palette[0],
-      points: data.history.map((event) => eventPoint(event)),
+      label: playerName,
+      color: palette[0],
+      points: filterPoints(data.history.map((event) => eventPoint(event))),
     },
   ]);
 }
 
-function addCompare(playerId, playerName) {
+function addCompare(playerId, playerName, redraw = true) {
   if (!state.compare.some((player) => player.player_id === playerId)) {
     state.compare.push({ player_id: playerId, player_name: playerName });
   }
+  renderChips();
+  if (redraw) {
+    renderCompare();
+  }
+}
+
+function removeCompare(playerId) {
+  state.compare = state.compare.filter((player) => player.player_id !== playerId);
+  renderChips();
   renderCompare();
 }
 
-async function renderCompare() {
+function renderChips() {
   compareListEl.innerHTML =
     state.compare
-      .map((player) => `<div class="compare-row"><strong>${escapeHtml(player.player_name)}</strong></div>`)
-      .join("") || `<div class="empty">No players</div>`;
+      .map(
+        (player, index) => `
+          <span class="chip" style="border-color:${palette[index % palette.length]}">
+            ${escapeHtml(player.player_name)}
+            <button type="button" data-id="${escapeHtml(player.player_id)}">x</button>
+          </span>
+        `,
+      )
+      .join("") || `<div class="empty">No players selected</div>`;
+  compareListEl.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => removeCompare(button.dataset.id));
+  });
+}
 
+async function renderCompare() {
+  renderChips();
   if (!state.compare.length) {
-    compareEl.innerHTML = "";
     drawEmptyChart(compareChart, "No players selected");
     return;
   }
 
   const ids = state.compare.map((player) => encodeURIComponent(player.player_id)).join(",");
-  const data = await api(`/api/compare?ids=${ids}`);
+  const data = await api(`/api/compare?ids=${ids}&start=${startYearInput.value}-01-01&end=${endYearInput.value}-12-31`);
   if (data.error) {
-    compareEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
     drawEmptyChart(compareChart, "No comparison data");
     return;
   }
@@ -210,23 +252,36 @@ async function renderCompare() {
     state.compare.map((player, index) => ({
       label: player.player_name,
       color: palette[index % palette.length],
-      points: (data[player.player_id] || []).map((event) => eventPoint(event)),
+      points: filterPoints((data[player.player_id] || []).map((event) => eventPoint(event))),
     })),
   );
+}
 
-  compareEl.innerHTML = state.compare
-    .map((player) => {
-      const events = data[player.player_id] || [];
-      const last = events.at(-1);
-      return `
-        <div class="compare-row">
-          <strong>${escapeHtml(player.player_name)}</strong>
-          <span>${events.length} events</span>
-          <span>${last ? `${formatRating(selectedEventRating(last))} ${ratingInput.value} Elo` : "-"}</span>
-        </div>
-      `;
-    })
-    .join("");
+async function loadEras() {
+  const data = await api(
+    `/api/eras?rating=${ratingInput.value}&start_year=${startYearInput.value}&end_year=${endYearInput.value}&leaders=3&limit=10`,
+  );
+  if (data.error) {
+    drawEmptyChart(eraChart, "No era data");
+    dominanceEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  eraRange.textContent = `${startYearInput.value} to ${endYearInput.value}`;
+  drawEraChart(eraChart, data.periods || []);
+  dominanceEl.innerHTML =
+    (data.dominance || [])
+      .map(
+        (row) => `
+          <div class="dominance-row">
+            <div>
+              <strong>${escapeHtml(row.player_name)}</strong>
+              <span>${row.first_year} to ${row.latest_year}, longest streak ${row.longest_streak}</span>
+            </div>
+            <div class="dominance-years">${row.years_at_number_one}</div>
+          </div>
+        `,
+      )
+      .join("") || `<div class="empty">No dominance data</div>`;
 }
 
 async function api(path) {
@@ -252,6 +307,12 @@ function selectedPeak(rating) {
   return ratingInput.value === "frame" ? rating.frame_elo : rating.match_elo;
 }
 
+function filterPoints(points) {
+  const start = Date.parse(`${startYearInput.value || "1900"}-01-01`);
+  const end = Date.parse(`${endYearInput.value || "2100"}-12-31`);
+  return points.filter((point) => point.x >= start && point.x <= end);
+}
+
 function formatRating(value) {
   return Number.isFinite(value) ? Math.round(value).toString() : "-";
 }
@@ -271,7 +332,7 @@ function escapeHtml(value) {
 
 function drawEmptyChart(canvas, label) {
   const ctx = prepareCanvas(canvas);
-  ctx.fillStyle = "#65717f";
+  ctx.fillStyle = "#66717f";
   ctx.font = "14px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(label, canvas.width / 2, canvas.height / 2);
@@ -283,7 +344,7 @@ function drawSeriesChart(canvas, series) {
       ...item,
       points: downsample(
         item.points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
-        600,
+        800,
       ),
     }))
     .filter((item) => item.points.length);
@@ -298,31 +359,17 @@ function drawSeriesChart(canvas, series) {
   const maxX = Math.max(...allPoints.map((point) => point.x));
   const minY = Math.min(...allPoints.map((point) => point.y));
   const maxY = Math.max(...allPoints.map((point) => point.y));
-  const pad = { left: 46, right: 14, top: 18, bottom: 32 };
+  const pad = { left: 48, right: 18, top: 18, bottom: 34 };
   const width = canvas.width - pad.left - pad.right;
   const height = canvas.height - pad.top - pad.bottom;
   const ySpan = Math.max(1, maxY - minY);
   const xSpan = Math.max(1, maxX - minX);
 
-  ctx.strokeStyle = "#d9e0e7";
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i += 1) {
-    const y = pad.top + (height * i) / 4;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, y);
-    ctx.lineTo(canvas.width - pad.right, y);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "#65717f";
-  ctx.font = "12px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText(Math.round(maxY), pad.left - 8, pad.top + 4);
-  ctx.fillText(Math.round(minY), pad.left - 8, pad.top + height);
+  drawGrid(ctx, canvas, pad, width, height, minY, maxY);
 
   active.forEach((item) => {
     ctx.strokeStyle = item.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     item.points.forEach((point, index) => {
       const x = pad.left + ((point.x - minX) / xSpan) * width;
@@ -336,7 +383,66 @@ function drawSeriesChart(canvas, series) {
     ctx.stroke();
   });
 
-  drawLegend(ctx, active, pad.left, canvas.height - 10);
+  drawLegend(ctx, active, pad.left, canvas.height - 12);
+}
+
+function drawGrid(ctx, canvas, pad, width, height, minY, maxY) {
+  ctx.strokeStyle = "#d8e1e8";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = pad.top + (height * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(canvas.width - pad.right, y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#66717f";
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(Math.round(maxY), pad.left - 8, pad.top + 4);
+  ctx.fillText(Math.round(minY), pad.left - 8, pad.top + height);
+}
+
+function drawEraChart(canvas, periods) {
+  const ctx = prepareCanvas(canvas);
+  if (!periods.length) {
+    drawEmptyChart(canvas, "No era data");
+    return;
+  }
+  const topLeaders = [...new Set(periods.map((period) => period.leaders[0]?.player_id).filter(Boolean))];
+  const colorFor = (playerId) => palette[Math.max(0, topLeaders.indexOf(playerId)) % palette.length];
+  const pad = { left: 48, right: 18, top: 22, bottom: 34 };
+  const width = canvas.width - pad.left - pad.right;
+  const height = canvas.height - pad.top - pad.bottom;
+  const years = periods.map((period) => Number(period.year));
+  const minYear = Math.min(...years);
+  const maxYear = Math.max(...years);
+  const span = Math.max(1, maxYear - minYear + 1);
+  const bandWidth = width / span;
+
+  periods.forEach((period) => {
+    const leader = period.leaders[0];
+    if (!leader) {
+      return;
+    }
+    const x = pad.left + (Number(period.year) - minYear) * bandWidth;
+    ctx.fillStyle = colorFor(leader.player_id);
+    ctx.fillRect(x, pad.top, Math.max(1, bandWidth + 1), height);
+  });
+
+  ctx.fillStyle = "#18212b";
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(String(minYear), pad.left, canvas.height - 12);
+  ctx.textAlign = "right";
+  ctx.fillText(String(maxYear), canvas.width - pad.right, canvas.height - 12);
+
+  const legend = topLeaders.slice(0, 6).map((id) => {
+    const period = periods.find((item) => item.leaders[0]?.player_id === id);
+    return { label: period?.leaders[0]?.player_name || id, color: colorFor(id) };
+  });
+  drawLegend(ctx, legend, pad.left, 14);
 }
 
 function prepareCanvas(canvas) {
@@ -352,13 +458,13 @@ function drawLegend(ctx, series, x, y) {
   ctx.font = "12px system-ui, sans-serif";
   ctx.textAlign = "left";
   let offset = 0;
-  series.slice(0, 4).forEach((item) => {
+  series.slice(0, 6).forEach((item) => {
     ctx.fillStyle = item.color;
     ctx.fillRect(x + offset, y - 8, 10, 10);
-    ctx.fillStyle = "#65717f";
-    const label = item.label.slice(0, 20);
+    ctx.fillStyle = "#66717f";
+    const label = item.label.slice(0, 18);
     ctx.fillText(label, x + offset + 14, y);
-    offset += Math.min(150, 34 + label.length * 7);
+    offset += Math.min(142, 34 + label.length * 7);
   });
 }
 
@@ -370,6 +476,7 @@ function downsample(points, limit) {
   return points.filter((_, index) => index % step === 0 || index === points.length - 1);
 }
 
+drawEmptyChart(compareChart, "Loading");
 drawEmptyChart(historyChart, "Select a player");
-drawEmptyChart(compareChart, "No players selected");
+drawEmptyChart(eraChart, "Loading");
 refresh();

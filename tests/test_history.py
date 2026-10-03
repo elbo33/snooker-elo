@@ -71,6 +71,14 @@ def test_historical_queries_and_ingestion_validation(tmp_path):
     assert peak_rank is not None
     assert peak_rank.rank == 1
 
+    periods = history.period_leaders(rating="match", start_year=2026, end_year=2026, limit=2)
+    assert len(periods) == 1
+    assert periods[0]["leaders"][0]["player_id"] == "/player/a"
+
+    dominance = history.dominance_summary(rating="match", start_year=2026, end_year=2026)
+    assert dominance[0]["player_id"] == "/player/a"
+    assert dominance[0]["years_at_number_one"] == 1
+
 
 def test_input_order_does_not_affect_distinct_date_results(tmp_path):
     source = tmp_path / "snookerdb.db"

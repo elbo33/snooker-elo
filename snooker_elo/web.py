@@ -102,6 +102,26 @@ def _handler_factory(db_path: Path):
                             end=_optional_param(params, "end"),
                         )
                     )
+                elif path == "/api/eras":
+                    rating = _param(params, "rating", "match")
+                    start_year = _optional_int(params, "start_year")
+                    end_year = _optional_int(params, "end_year")
+                    self._json(
+                        {
+                            "periods": history.period_leaders(
+                                rating=rating,
+                                start_year=start_year,
+                                end_year=end_year,
+                                limit=int(_param(params, "leaders", "3")),
+                            ),
+                            "dominance": history.dominance_summary(
+                                rating=rating,
+                                start_year=start_year,
+                                end_year=end_year,
+                                limit=int(_param(params, "limit", "12")),
+                            ),
+                        }
+                    )
                 else:
                     self.send_error(HTTPStatus.NOT_FOUND)
             except Exception as exc:
@@ -126,6 +146,11 @@ def _param(params: dict[str, list[str]], name: str, default: str) -> str:
 def _optional_param(params: dict[str, list[str]], name: str) -> str | None:
     values = params.get(name)
     return values[0] if values and values[0] else None
+
+
+def _optional_int(params: dict[str, list[str]], name: str) -> int | None:
+    value = _optional_param(params, name)
+    return int(value) if value is not None else None
 
 
 def _jsonable(value: object) -> object:

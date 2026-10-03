@@ -179,7 +179,7 @@ Then open:
 http://127.0.0.1:8000
 ```
 
-The dashboard includes a historical leaderboard, clickable player rows, player search, player detail metrics, Elo history chart and multi-player comparison chart.
+The dashboard includes a modern historical leaderboard, player search, selectable comparison chips, a large Elo evolution chart, individual player history, yearly No.1 timeline and dominance summary by era.
 
 ## Validation
 

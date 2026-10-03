@@ -185,6 +185,140 @@ class HistoricalRatings:
     def top_n_at(self, when: datetime | date | str, n: int = 10, rating: RatingKind = "match") -> list[RankingRow]:
         return self.rankings_at(when, rating=rating, limit=n)
 
+    def period_leaders(
+        self,
+        rating: RatingKind = "match",
+        start_year: int | None = None,
+        end_year: int | None = None,
+        limit: int = 3,
+    ) -> list[dict[str, object]]:
+        rating_column = _rating_column(rating)
+        metadata = self.build_metadata()
+        earliest = _metadata_datetime(metadata.get("earliest_match"))
+        latest = _metadata_datetime(metadata.get("latest_match"))
+        if earliest is None or latest is None:
+            return []
+
+        start = start_year or earliest.year
+        end = end_year or latest.year
+        cutoffs: list[tuple[int, str]] = []
+        for year in range(start, end + 1):
+            sample_date = datetime.combine(date(year, 12, 31), time.max)
+            if sample_date > latest:
+                sample_date = latest
+            if sample_date < earliest:
+                continue
+            cutoffs.append((year, sample_date.isoformat()))
+
+        if not cutoffs:
+            return []
+
+        placeholders = ",".join("(?, ?)" for _ in cutoffs)
+        params: list[object] = []
+        for year, cutoff in cutoffs:
+            params.extend([year, cutoff])
+        params.append(limit)
+
+        sql = f"""
+            WITH years(year, cutoff) AS (
+                VALUES {placeholders}
+            ),
+            current AS (
+                SELECT
+                    years.year,
+                    years.cutoff,
+                    rating_events.player_id,
+                    rating_events.player_name,
+                    rating_events.match_elo_after,
+                    rating_events.frame_elo_after,
+                    rating_events.played_at
+                FROM years
+                CROSS JOIN players
+                JOIN rating_events ON rating_events.event_id = (
+                    SELECT latest.event_id
+                    FROM rating_events AS latest
+                    WHERE latest.player_id = players.player_id
+                      AND latest.played_at <= years.cutoff
+                    ORDER BY latest.played_at DESC, latest.event_id DESC
+                    LIMIT 1
+                )
+            ),
+            ranked AS (
+                SELECT
+                    *,
+                    RANK() OVER (PARTITION BY year ORDER BY {rating_column} DESC) AS rank
+                FROM current
+            )
+            SELECT *
+            FROM ranked
+            WHERE rank <= ?
+            ORDER BY year ASC, rank ASC, player_name ASC, player_id ASC
+        """
+
+        grouped: dict[int, dict[str, object]] = {}
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+
+        for row in rows:
+            period = grouped.setdefault(
+                int(row["year"]),
+                {"year": int(row["year"]), "date": datetime.fromisoformat(row["cutoff"]), "leaders": []},
+            )
+            leaders = period["leaders"]
+            assert isinstance(leaders, list)
+            leaders.append(
+                {
+                    "rank": int(row["rank"]),
+                    "player_id": row["player_id"],
+                    "player_name": row["player_name"],
+                    "rating": float(row[rating_column]),
+                    "match_elo": float(row["match_elo_after"]),
+                    "frame_elo": float(row["frame_elo_after"]),
+                    "last_played_at": datetime.fromisoformat(row["played_at"]),
+                }
+            )
+        return list(grouped.values())
+
+    def dominance_summary(
+        self,
+        rating: RatingKind = "match",
+        start_year: int | None = None,
+        end_year: int | None = None,
+        limit: int = 12,
+    ) -> list[dict[str, object]]:
+        periods = self.period_leaders(rating=rating, start_year=start_year, end_year=end_year, limit=1)
+        by_player: dict[str, dict[str, object]] = {}
+        current_player: str | None = None
+        current_streak = 0
+
+        for period in periods:
+            leader = period["leaders"][0]
+            assert isinstance(leader, dict)
+            row = by_player.setdefault(
+                str(leader["player_id"]),
+                {
+                    "player_id": leader["player_id"],
+                    "player_name": leader["player_name"],
+                    "years_at_number_one": 0,
+                    "first_year": period["year"],
+                    "latest_year": period["year"],
+                    "longest_streak": 0,
+                },
+            )
+            row["years_at_number_one"] = int(row["years_at_number_one"]) + 1
+            row["latest_year"] = period["year"]
+            if current_player == leader["player_id"]:
+                current_streak += 1
+            else:
+                current_player = str(leader["player_id"])
+                current_streak = 1
+            row["longest_streak"] = max(int(row["longest_streak"]), current_streak)
+
+        return sorted(
+            by_player.values(),
+            key=lambda row: (-int(row["years_at_number_one"]), -int(row["longest_streak"]), str(row["player_name"])),
+        )[:limit]
+
     def build_metadata(self) -> dict[str, str]:
         with self._connect() as conn:
             rows = conn.execute("SELECT key, value FROM build_metadata ORDER BY key").fetchall()
@@ -491,6 +625,15 @@ def _metadata_rows(stats: IngestionStats) -> list[tuple[str, str]]:
             text = str(value)
         rows.append((key, text))
     return rows
+
+
+def _metadata_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _rating_column(rating: RatingKind) -> str:

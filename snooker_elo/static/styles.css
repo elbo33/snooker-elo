@@ -1,14 +1,17 @@
 :root {
   color-scheme: light;
-  --ink: #1f2933;
-  --muted: #65717f;
-  --line: #d9e0e7;
+  --ink: #18212b;
+  --muted: #66717f;
+  --line: #d8e1e8;
   --surface: #ffffff;
-  --band: #f4f7f9;
-  --accent: #157f63;
-  --accent-2: #315caa;
-  --accent-3: #9a4d16;
-  --warn: #b7791f;
+  --surface-2: #f6f8fb;
+  --page: #eef3f2;
+  --green: #13795b;
+  --blue: #2f66b3;
+  --gold: #a56a21;
+  --plum: #7f4da0;
+  --red: #b23b35;
+  --slate: #44515f;
 }
 
 * {
@@ -18,19 +21,11 @@
 body {
   margin: 0;
   color: var(--ink);
-  background: var(--band);
+  background:
+    linear-gradient(180deg, #102d28 0, #102d28 190px, transparent 190px),
+    var(--page);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
-}
-
-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: end;
-  padding: 28px 32px;
-  background: #11312a;
-  color: white;
 }
 
 h1,
@@ -40,12 +35,13 @@ p {
 }
 
 h1 {
-  font-size: 28px;
-  font-weight: 720;
+  font-size: 30px;
+  font-weight: 760;
 }
 
 h2 {
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 740;
 }
 
 p,
@@ -53,43 +49,34 @@ span {
   color: var(--muted);
 }
 
-header p,
-header span {
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 28px;
+  align-items: end;
+  padding: 28px 32px 22px;
+  color: white;
+}
+
+.topbar p,
+.topbar span {
   color: #c6d8d3;
 }
 
-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-  gap: 24px;
-  padding: 24px 32px 40px;
-}
-
-section {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-aside {
-  display: grid;
-  gap: 16px;
-  align-content: start;
-}
-
-.section-title {
+.controls,
+.search {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
 }
 
-form {
-  display: flex;
-  gap: 8px;
+label {
+  display: grid;
+  gap: 5px;
+  color: #d5e4df;
+  font-size: 12px;
+  font-weight: 680;
 }
 
 input,
@@ -97,7 +84,7 @@ select,
 button {
   min-height: 38px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 7px;
   padding: 0 10px;
   font: inherit;
 }
@@ -105,9 +92,100 @@ button {
 button {
   cursor: pointer;
   color: white;
-  background: var(--accent);
-  border-color: var(--accent);
-  font-weight: 650;
+  background: var(--green);
+  border-color: var(--green);
+  font-weight: 720;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 18px;
+  padding: 0 32px 42px;
+}
+
+.panel {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 18px 45px rgba(15, 32, 39, 0.08);
+}
+
+.compare-panel,
+.eras-panel {
+  grid-column: 1 / -1;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff, #fbfcfd);
+}
+
+.search input {
+  width: min(320px, 45vw);
+}
+
+.search-results,
+#player-detail,
+.dominance-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chip button {
+  min-height: 22px;
+  width: 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--slate);
+  border-color: var(--slate);
+  line-height: 1;
+}
+
+canvas {
+  display: block;
+  width: calc(100% - 32px);
+  height: 340px;
+  margin: 16px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfcfd;
+}
+
+#era-chart {
+  height: 180px;
+}
+
+#history-chart {
+  height: 220px;
 }
 
 table {
@@ -146,31 +224,25 @@ tbody tr:hover {
   background: #eef6f3;
 }
 
-#player-search {
-  padding: 14px 16px;
-}
-
-#search {
-  min-width: 0;
-  flex: 1;
-}
-
-#players,
-#player-detail,
-#compare,
-#compare-list {
-  display: grid;
-  gap: 8px;
-  padding: 0 16px 16px;
-}
-
 .player-row,
 .metric-row,
-.compare-row {
+.dominance-row {
   display: grid;
   gap: 4px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
+}
+
+.player-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.player-row span,
+.metric-row span,
+.dominance-row span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .metric-grid {
@@ -179,15 +251,14 @@ tbody tr:hover {
   gap: 0 16px;
 }
 
-.player-row button {
-  width: fit-content;
-  background: var(--accent-2);
-  border-color: var(--accent-2);
+.dominance-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
 }
 
-.metric-row strong,
-.compare-row strong {
-  font-size: 14px;
+.dominance-years {
+  color: var(--green);
+  font-weight: 800;
 }
 
 .empty,
@@ -197,47 +268,38 @@ tbody tr:hover {
 }
 
 .error {
-  color: var(--warn);
+  color: var(--gold);
 }
 
-#clear-compare {
-  margin: 0 16px 16px;
-  background: #44515f;
-  border-color: #44515f;
-}
+@media (max-width: 980px) {
+  body {
+    background:
+      linear-gradient(180deg, #102d28 0, #102d28 260px, transparent 260px),
+      var(--page);
+  }
 
-canvas {
-  display: block;
-  width: calc(100% - 32px);
-  height: 220px;
-  margin: 0 16px 16px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fbfcfd;
-}
-
-.selected {
-  background: #e4f1ed;
-}
-
-@media (max-width: 900px) {
-  header,
-  main {
+  .topbar,
+  .dashboard {
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  header,
-  main {
+  .topbar,
+  .dashboard {
     display: grid;
     grid-template-columns: 1fr;
   }
 
-  form {
-    flex-wrap: wrap;
+  .compare-panel,
+  .eras-panel {
+    grid-column: auto;
   }
 
-  .leaderboard {
+  .panel-head {
+    display: grid;
+  }
+
+  .leaderboard-panel {
     overflow-x: auto;
   }
 

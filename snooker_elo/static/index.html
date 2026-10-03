@@ -7,26 +7,66 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header>
+    <header class="topbar">
       <div>
         <h1>Snooker Elo</h1>
         <p id="status">Loading</p>
       </div>
-      <form id="controls">
-        <input id="date" type="date" />
-        <select id="rating">
-          <option value="match">Match Elo</option>
-          <option value="frame">Frame Elo</option>
-        </select>
+      <form id="controls" class="controls">
+        <label>
+          Rating
+          <select id="rating">
+            <option value="match">Match Elo</option>
+            <option value="frame">Frame Elo</option>
+          </select>
+        </label>
+        <label>
+          Leaderboard Date
+          <input id="date" type="date" />
+        </label>
+        <label>
+          From
+          <input id="start-year" type="number" min="1900" max="2100" step="1" />
+        </label>
+        <label>
+          To
+          <input id="end-year" type="number" min="1900" max="2100" step="1" />
+        </label>
         <button type="submit">Refresh</button>
       </form>
     </header>
 
-    <main>
-      <section class="leaderboard">
-        <div class="section-title">
+    <main class="dashboard">
+      <section class="panel compare-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Elo Evolution</h2>
+            <span id="meta"></span>
+          </div>
+          <form id="player-search" class="search">
+            <input id="search" type="search" placeholder="Search player" />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+        <div id="players" class="search-results"></div>
+        <div id="compare-list" class="chips"></div>
+        <canvas id="compare-chart" width="1100" height="420"></canvas>
+      </section>
+
+      <section class="panel eras-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Yearly No.1</h2>
+            <span id="era-range"></span>
+          </div>
+        </div>
+        <canvas id="era-chart" width="1100" height="220"></canvas>
+        <div id="dominance" class="dominance-list"></div>
+      </section>
+
+      <section class="panel leaderboard-panel">
+        <div class="panel-head">
           <h2>Leaderboard</h2>
-          <span id="meta"></span>
         </div>
         <table>
           <thead>
@@ -42,36 +82,13 @@
         </table>
       </section>
 
-      <aside>
-        <section>
-          <div class="section-title">
-            <h2>Players</h2>
-          </div>
-          <form id="player-search">
-            <input id="search" type="search" placeholder="Search player" />
-            <button type="submit">Find</button>
-          </form>
-          <div id="players"></div>
-        </section>
-
-        <section>
-          <div class="section-title">
-            <h2>Player</h2>
-          </div>
-          <div id="player-detail"></div>
-          <canvas id="history-chart" width="720" height="320"></canvas>
-        </section>
-
-        <section>
-          <div class="section-title">
-            <h2>Compare</h2>
-          </div>
-          <div id="compare-list"></div>
-          <button id="clear-compare" type="button">Clear</button>
-          <canvas id="compare-chart" width="720" height="320"></canvas>
-          <div id="compare"></div>
-        </section>
-      </aside>
+      <section class="panel player-panel">
+        <div class="panel-head">
+          <h2>Player</h2>
+        </div>
+        <div id="player-detail"></div>
+        <canvas id="history-chart" width="720" height="260"></canvas>
+      </section>
     </main>
 
     <script src="/app.js"></script>

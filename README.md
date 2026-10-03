@@ -110,6 +110,19 @@ python -m snooker_elo.sync_snookerdb \
 
 The checker compares GitHub's file SHA with the local Git blob SHA for `data/snookerdb.db`, so it can detect an upstream update without relying on timestamps. A scheduled website deployment can run this command, rebuild `output/snooker_elo_history.sqlite` only when stale, and then redeploy the dashboard data.
 
+## Automatic Updates
+
+GitHub Actions workflow `.github/workflows/sync-snookerdb.yml` runs every day at `02:30 UTC`, after SnookerDB's documented nightly `00:30 UTC` update window. It can also be run manually from GitHub's **Actions** tab.
+
+The workflow:
+
+- checks the upstream `obrienjoey/snookerdb` SQLite file
+- downloads it into `data/snookerdb.db` in the runner
+- rebuilds `output/snooker_elo_history.sqlite`
+- uploads the generated SQLite and `sync-summary.txt` as a workflow artifact
+
+Generated database files are still not committed. When the project has production hosting, the deploy job should use the same sync command, then publish the refreshed app/data.
+
 ## Query Historical Ratings
 
 ```python

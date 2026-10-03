@@ -1,0 +1,45 @@
+name: Sync SnookerDB
+
+on:
+  workflow_dispatch:
+  schedule:
+    # SnookerDB documents a nightly upstream run at 00:30 UTC.
+    # Run later so their commit has time to land before we check.
+    - cron: "30 2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check, download, and rebuild history
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -m snooker_elo.sync_snookerdb \
+            --download \
+            --rebuild \
+            --local data/snookerdb.db \
+            --output output/snooker_elo_history.sqlite \
+            | tee sync-summary.txt
+
+      - name: Upload generated history
+        uses: actions/upload-artifact@v4
+        with:
+          name: snooker-elo-history
+          path: |
+            output/snooker_elo_history.sqlite
+            sync-summary.txt
+          if-no-files-found: error
+          retention-days: 14

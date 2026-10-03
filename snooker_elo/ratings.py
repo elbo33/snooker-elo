@@ -24,6 +24,10 @@ class RatingEvent:
     match_elo_after: float
     frame_elo_before: float
     frame_elo_after: float
+    player_id: str | None = None
+    player_name: str | None = None
+    opponent_id: str | None = None
+    opponent_name: str | None = None
 
 
 def expected_score(rating: float, opponent_rating: float, scale: float = 400.0) -> float:
@@ -59,6 +63,8 @@ class EloEngine:
         player_b: str,
         frames_a: int,
         frames_b: int,
+        player_a_name: str | None = None,
+        player_b_name: str | None = None,
     ) -> tuple[RatingEvent, RatingEvent]:
         if player_a == player_b:
             raise ValueError("A player cannot play themselves")
@@ -81,7 +87,37 @@ class EloEngine:
         self.match_ratings[player_a], self.match_ratings[player_b] = new_ma, new_mb
         self.frame_ratings[player_a], self.frame_ratings[player_b] = new_fa, new_fb
 
-        event_a = RatingEvent(match_id, played_at, player_a, player_b, frames_a, frames_b, ma, new_ma, fa, new_fa)
-        event_b = RatingEvent(match_id, played_at, player_b, player_a, frames_b, frames_a, mb, new_mb, fb, new_fb)
+        event_a = RatingEvent(
+            match_id=match_id,
+            played_at=played_at,
+            player=player_a,
+            opponent=player_b,
+            frames_won=frames_a,
+            frames_lost=frames_b,
+            match_elo_before=ma,
+            match_elo_after=new_ma,
+            frame_elo_before=fa,
+            frame_elo_after=new_fa,
+            player_id=player_a,
+            player_name=player_a_name or player_a,
+            opponent_id=player_b,
+            opponent_name=player_b_name or player_b,
+        )
+        event_b = RatingEvent(
+            match_id=match_id,
+            played_at=played_at,
+            player=player_b,
+            opponent=player_a,
+            frames_won=frames_b,
+            frames_lost=frames_a,
+            match_elo_before=mb,
+            match_elo_after=new_mb,
+            frame_elo_before=fb,
+            frame_elo_after=new_fb,
+            player_id=player_b,
+            player_name=player_b_name or player_b,
+            opponent_id=player_a,
+            opponent_name=player_a_name or player_a,
+        )
         self.events.extend((event_a, event_b))
         return event_a, event_b

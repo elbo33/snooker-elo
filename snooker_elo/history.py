@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Iterable, Literal
 
 from .ingestion import ingest_snookerdb
-from .models import IngestionStats, NormalizedMatch, PlayerRating, RankingRow
+from .models import IngestionStats, NormalizedMatch, PlayerRating, PlayerSummary, RankingRow
 from .ratings import EloEngine, RatingEvent
 
 RatingKind = Literal["match", "frame"]
@@ -48,6 +48,7 @@ def persist_history(output_db: str | Path, events: Iterable[RatingEvent], stats:
         conn.execute("PRAGMA foreign_keys = ON")
         _create_schema(conn)
         conn.execute("DELETE FROM build_metadata")
+        conn.execute("DELETE FROM rejected_match_samples")
         conn.execute("DELETE FROM rating_events")
         conn.execute("DELETE FROM players")
 
@@ -103,6 +104,40 @@ def persist_history(output_db: str | Path, events: Iterable[RatingEvent], stats:
         )
         for key, value in _metadata_rows(stats):
             conn.execute("INSERT INTO build_metadata (key, value) VALUES (?, ?)", (key, value))
+        conn.executemany(
+            """
+            INSERT INTO rejected_match_samples (
+                reason,
+                match_id,
+                tournament_id,
+                raw_date,
+                player_1,
+                player_1_url,
+                player_1_score,
+                player_2,
+                player_2_url,
+                player_2_score,
+                walkover
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    sample.reason,
+                    sample.match_id,
+                    sample.tournament_id,
+                    sample.raw_date,
+                    sample.player_1,
+                    sample.player_1_url,
+                    sample.player_1_score,
+                    sample.player_2,
+                    sample.player_2_url,
+                    sample.player_2_score,
+                    sample.walkover,
+                )
+                for sample in stats.rejected_samples
+            ],
+        )
         conn.commit()
 
 
@@ -150,6 +185,61 @@ class HistoricalRatings:
     def top_n_at(self, when: datetime | date | str, n: int = 10, rating: RatingKind = "match") -> list[RankingRow]:
         return self.rankings_at(when, rating=rating, limit=n)
 
+    def build_metadata(self) -> dict[str, str]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT key, value FROM build_metadata ORDER BY key").fetchall()
+        return {row["key"]: row["value"] for row in rows}
+
+    def rejected_match_samples(self, reason: str | None = None, limit: int = 50) -> list[sqlite3.Row]:
+        params: list[object] = []
+        where = ""
+        if reason is not None:
+            where = "WHERE reason = ?"
+            params.append(reason)
+        params.append(limit)
+        with self._connect() as conn:
+            return conn.execute(
+                f"""
+                SELECT *
+                FROM rejected_match_samples
+                {where}
+                ORDER BY sample_id ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+    def players(self, search: str | None = None, limit: int = 100) -> list[PlayerSummary]:
+        params: list[object] = []
+        where = ""
+        if search:
+            where = "WHERE lower(players.player_name) LIKE ? OR lower(players.player_id) LIKE ?"
+            pattern = f"%{search.lower()}%"
+            params.extend([pattern, pattern])
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    players.player_id,
+                    players.player_name,
+                    COUNT(rating_events.event_id) AS matches_played,
+                    MIN(rating_events.played_at) AS first_played_at,
+                    MAX(rating_events.played_at) AS last_played_at
+                FROM players
+                JOIN rating_events ON rating_events.player_id = players.player_id
+                {where}
+                GROUP BY players.player_id, players.player_name
+                ORDER BY players.player_name ASC, players.player_id ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        return [_player_summary(row) for row in rows]
+
+    def find_players(self, query: str, limit: int = 20) -> list[PlayerSummary]:
+        return self.players(search=query, limit=limit)
+
     def player_rating_at(self, player_id: str, when: datetime | date | str) -> PlayerRating | None:
         cutoff = _coerce_datetime(when).isoformat()
         with self._connect() as conn:
@@ -177,6 +267,57 @@ class HistoricalRatings:
         if row is None:
             return None
         return _player_rating(row)
+
+    def player_rank_at(self, player_id: str, when: datetime | date | str, rating: RatingKind = "match") -> RankingRow | None:
+        rating_column = _rating_column(rating)
+        cutoff = _coerce_datetime(when).isoformat()
+        sql = f"""
+            WITH latest AS (
+                SELECT
+                    event_id,
+                    player_id,
+                    player_name,
+                    match_elo_after,
+                    frame_elo_after,
+                    played_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY player_id
+                        ORDER BY played_at DESC, event_id DESC
+                    ) AS rn,
+                    COUNT(*) OVER (PARTITION BY player_id) AS matches_played
+                FROM rating_events
+                WHERE played_at <= ?
+            ),
+            current AS (
+                SELECT *
+                FROM latest
+                WHERE rn = 1
+            ),
+            target AS (
+                SELECT *
+                FROM current
+                WHERE player_id = ?
+            )
+            SELECT
+                target.player_id,
+                target.player_name,
+                target.match_elo_after,
+                target.frame_elo_after,
+                target.played_at,
+                target.matches_played,
+                1 + (
+                    SELECT COUNT(*)
+                    FROM current
+                    WHERE {rating_column} > target.{rating_column}
+                ) AS rank
+            FROM target
+            LIMIT 1
+        """
+        with self._connect() as conn:
+            row = conn.execute(sql, (cutoff, player_id)).fetchone()
+        if row is None:
+            return None
+        return _ranking_row(row, rating)
 
     def player_history(self, player_id: str) -> list[sqlite3.Row]:
         with self._connect() as conn:
@@ -264,14 +405,19 @@ class HistoricalRatings:
             dates = [
                 row["played_at"]
                 for row in conn.execute(
-                    "SELECT DISTINCT played_at FROM rating_events ORDER BY played_at ASC"
+                    """
+                    SELECT played_at
+                    FROM rating_events
+                    WHERE player_id = ?
+                    ORDER BY played_at ASC, event_id ASC
+                    """,
+                    (player_id,),
                 ).fetchall()
             ]
 
         best: RankingRow | None = None
         for played_at in dates:
-            rankings = self.rankings_at(played_at, rating=rating, limit=1_000_000)
-            player_row = next((row for row in rankings if row.player_id == player_id), None)
+            player_row = self.player_rank_at(player_id, played_at, rating=rating)
             if player_row is not None and (best is None or player_row.rank < best.rank):
                 best = player_row
         return best
@@ -311,6 +457,21 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             value TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS rejected_match_samples (
+            sample_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reason TEXT NOT NULL,
+            match_id TEXT,
+            tournament_id TEXT,
+            raw_date TEXT,
+            player_1 TEXT,
+            player_1_url TEXT,
+            player_1_score TEXT,
+            player_2 TEXT,
+            player_2_url TEXT,
+            player_2_score TEXT,
+            walkover TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_rating_events_player_date
             ON rating_events (player_id, played_at, event_id);
         CREATE INDEX IF NOT EXISTS idx_rating_events_date
@@ -322,6 +483,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 def _metadata_rows(stats: IngestionStats) -> list[tuple[str, str]]:
     rows = []
     for key, value in asdict(stats).items():
+        if key == "rejected_samples":
+            continue
         if isinstance(value, datetime):
             text = value.isoformat()
         else:
@@ -372,4 +535,14 @@ def _player_rating(row: sqlite3.Row) -> PlayerRating:
         frame_elo=float(row["frame_elo_after"]),
         matches_played=int(row["matches_played"]),
         last_played_at=datetime.fromisoformat(row["played_at"]),
+    )
+
+
+def _player_summary(row: sqlite3.Row) -> PlayerSummary:
+    return PlayerSummary(
+        player_id=row["player_id"],
+        player_name=row["player_name"],
+        matches_played=int(row["matches_played"]),
+        first_played_at=datetime.fromisoformat(row["first_played_at"]),
+        last_played_at=datetime.fromisoformat(row["last_played_at"]),
     )

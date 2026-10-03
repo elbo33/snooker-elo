@@ -5,6 +5,21 @@ from datetime import datetime
 
 
 @dataclass(frozen=True)
+class RejectedMatchSample:
+    reason: str
+    match_id: str | None
+    tournament_id: str | None
+    raw_date: str | None
+    player_1: str | None
+    player_1_url: str | None
+    player_1_score: str | None
+    player_2: str | None
+    player_2_url: str | None
+    player_2_score: str | None
+    walkover: str | None
+
+
+@dataclass(frozen=True)
 class NormalizedMatch:
     match_id: str
     played_at: datetime
@@ -35,6 +50,7 @@ class IngestionStats:
     earliest_match: datetime | None = None
     latest_match: datetime | None = None
     rejection_reasons: dict[str, int] = field(default_factory=dict)
+    rejected_samples: list[RejectedMatchSample] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -56,4 +72,13 @@ class PlayerRating:
     match_elo: float
     frame_elo: float
     matches_played: int
+    last_played_at: datetime
+
+
+@dataclass(frozen=True)
+class PlayerSummary:
+    player_id: str
+    player_name: str
+    matches_played: int
+    first_played_at: datetime
     last_played_at: datetime

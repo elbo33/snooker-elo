@@ -32,6 +32,7 @@ def test_historical_queries_and_ingestion_validation(tmp_path):
     assert [row.player_id for row in after_first] == ["/player/c", "/player/b"]
     assert after_first[0].rank == 1
     assert after_first[0].matches_played == 1
+    assert history.player_rank_at("/player/c", "2026-01-03").rank == 1
 
     between_matches = history.player_rating_at("/player/a", datetime(2026, 1, 4))
     assert between_matches is None
@@ -48,6 +49,19 @@ def test_historical_queries_and_ingestion_validation(tmp_path):
     comparison = history.compare_players(["/player/a", "/player/b"])
     assert set(comparison) == {"/player/a", "/player/b"}
     assert len(comparison["/player/b"]) == 3
+
+    players = history.find_players("player a")
+    assert len(players) == 1
+    assert players[0].player_id == "/player/a"
+    assert players[0].matches_played == 2
+
+    metadata = history.build_metadata()
+    assert metadata["usable_matches"] == "3"
+    assert metadata["rejected_matches"] == "3"
+
+    rejected = history.rejected_match_samples()
+    assert len(rejected) == 3
+    assert {row["reason"] for row in rejected} == {"walkover", "malformed_scores", "missing_dates"}
 
     peak = history.peak_rating("/player/a")
     assert peak is not None

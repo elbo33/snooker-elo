@@ -54,6 +54,12 @@ class EloEngine:
     def _frame_rating(self, player: str) -> float:
         return self.frame_ratings.get(player, self.config.initial_rating)
 
+    def match_rating(self, player: str) -> float:
+        return self._match_rating(player)
+
+    def frame_rating(self, player: str) -> float:
+        return self._frame_rating(player)
+
     def process_match(
         self,
         *,

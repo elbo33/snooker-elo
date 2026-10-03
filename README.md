@@ -87,6 +87,7 @@ history = HistoricalRatings("output/snooker_elo_history.sqlite")
 
 top_10 = history.top_n_at("2005-01-01", n=10, rating="match")
 ronnie = history.player_rating_at("/players/ronnie-osullivan", "2012-04-15")
+ronnie_rank = history.player_rank_at("/players/ronnie-osullivan", "2012-04-15")
 peak = history.peak_rating("/players/ronnie-osullivan", rating="frame")
 comparison = history.compare_players(
     [
@@ -97,11 +98,43 @@ comparison = history.compare_players(
     start="2000-01-01",
     end="2020-12-31",
 )
+
+players = history.find_players("O'Sullivan")
+metadata = history.build_metadata()
+rejected_samples = history.rejected_match_samples()
 ```
 
 A player's rating at a date is their most recent rating event on or before that date. Players who have not played by that date do not appear in rankings.
 
 Match Elo and Frame Elo are independent rating systems. Their raw numeric values should not be interpreted as directly comparable across systems; within-system rank and predictive performance are the meaningful comparisons.
+
+## Backtesting
+
+Backtesting records predictions from ratings before each match is processed, then applies the match update. This avoids using future information.
+
+Run both baseline systems against SnookerDB with:
+
+```bash
+python -m snooker_elo.backtest --source data/snookerdb.db
+```
+
+The command reports observations, log loss, Brier score and accuracy for Match Elo and Frame Elo.
+
+## Local Dashboard
+
+After building `output/snooker_elo_history.sqlite`, run:
+
+```bash
+python -m snooker_elo.web --db output/snooker_elo_history.sqlite
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
+
+The dashboard includes a historical leaderboard, player search, player detail panel and comparison panel.
 
 ## Validation
 

@@ -6,12 +6,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from .models import IngestionStats, NormalizedMatch
+from .models import IngestionStats, NormalizedMatch, RejectedMatchSample
 
 FALSE_VALUES = {"", "0", "false", "f", "no", "n", "none", "null"}
 
 
-def ingest_snookerdb(db_path: str | Path) -> tuple[list[NormalizedMatch], IngestionStats]:
+def ingest_snookerdb(db_path: str | Path, sample_limit: int = 50) -> tuple[list[NormalizedMatch], IngestionStats]:
     """Read SnookerDB matches into deterministic chronological match records."""
     path = Path(db_path)
     if not path.exists():
@@ -46,25 +46,26 @@ def ingest_snookerdb(db_path: str | Path) -> tuple[list[NormalizedMatch], Ingest
 
     matches: list[NormalizedMatch] = []
     reasons: Counter[str] = Counter()
+    rejected_samples: list[RejectedMatchSample] = []
     unique_players: set[str] = set()
     player_names_by_id: dict[str, set[str]] = {}
 
     for row in rows:
         if _is_walkover(row["walkover"]):
-            reasons["walkover"] += 1
+            _reject("walkover", row, reasons, rejected_samples, sample_limit)
             continue
 
         frames_a = _parse_int(row["player_1_score"])
         frames_b = _parse_int(row["player_2_score"])
         if frames_a is None or frames_b is None or frames_a < 0 or frames_b < 0 or frames_a + frames_b == 0:
-            reasons["malformed_scores"] += 1
+            _reject("malformed_scores", row, reasons, rejected_samples, sample_limit)
             continue
 
         played_at = _parse_date(row["date"]) or _parse_date(row["tournament_start_date"]) or _parse_date(
             row["tournament_end_date"]
         )
         if played_at is None:
-            reasons["missing_dates"] += 1
+            _reject("missing_dates", row, reasons, rejected_samples, sample_limit)
             continue
 
         player_a_id = _player_id(row["player_1_url"], row["player_1"])
@@ -72,7 +73,7 @@ def ingest_snookerdb(db_path: str | Path) -> tuple[list[NormalizedMatch], Ingest
         player_a_name = _clean_text(row["player_1"])
         player_b_name = _clean_text(row["player_2"])
         if not player_a_id or not player_b_id or not player_a_name or not player_b_name or player_a_id == player_b_id:
-            reasons["missing_players"] += 1
+            _reject("missing_players", row, reasons, rejected_samples, sample_limit)
             continue
 
         unique_players.update((player_a_id, player_b_id))
@@ -120,8 +121,36 @@ def ingest_snookerdb(db_path: str | Path) -> tuple[list[NormalizedMatch], Ingest
         earliest_match=matches[0].played_at if matches else None,
         latest_match=matches[-1].played_at if matches else None,
         rejection_reasons=dict(reasons),
+        rejected_samples=rejected_samples,
     )
     return matches, stats
+
+
+def _reject(
+    reason: str,
+    row: sqlite3.Row,
+    reasons: Counter[str],
+    rejected_samples: list[RejectedMatchSample],
+    sample_limit: int,
+) -> None:
+    reasons[reason] += 1
+    if len(rejected_samples) >= sample_limit:
+        return
+    rejected_samples.append(
+        RejectedMatchSample(
+            reason=reason,
+            match_id=_clean_text(row["match_id"]),
+            tournament_id=_clean_text(row["tourn_id"]),
+            raw_date=_clean_text(row["date"]),
+            player_1=_clean_text(row["player_1"]),
+            player_1_url=_clean_text(row["player_1_url"]),
+            player_1_score=_clean_text(row["player_1_score"]),
+            player_2=_clean_text(row["player_2"]),
+            player_2_url=_clean_text(row["player_2_url"]),
+            player_2_score=_clean_text(row["player_2_score"]),
+            walkover=_clean_text(row["walkover"]),
+        )
+    )
 
 
 def _clean_text(value: Any) -> str | None:

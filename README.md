@@ -78,6 +78,38 @@ The build step:
 
 SQLite is used for processed history because it is portable, requires no service, and supports indexed historical queries efficiently for the event stream.
 
+## Sync SnookerDB
+
+The upstream SnookerDB project publishes its SQLite database at:
+
+```text
+https://github.com/obrienjoey/snookerdb/blob/main/Database/snookerdb.db
+```
+
+Check whether the local copy is current:
+
+```bash
+python -m snooker_elo.sync_snookerdb --local data/snookerdb.db
+```
+
+Download the upstream database if it is missing or stale:
+
+```bash
+python -m snooker_elo.sync_snookerdb --download --local data/snookerdb.db
+```
+
+Download and rebuild the processed historical Elo database:
+
+```bash
+python -m snooker_elo.sync_snookerdb \
+  --download \
+  --rebuild \
+  --local data/snookerdb.db \
+  --output output/snooker_elo_history.sqlite
+```
+
+The checker compares GitHub's file SHA with the local Git blob SHA for `data/snookerdb.db`, so it can detect an upstream update without relying on timestamps. A scheduled website deployment can run this command, rebuild `output/snooker_elo_history.sqlite` only when stale, and then redeploy the dashboard data.
+
 ## Query Historical Ratings
 
 ```python

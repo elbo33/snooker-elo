@@ -16,6 +16,14 @@ from .models import (
     RejectedMatchSample,
 )
 from .ratings import EloConfig, EloEngine, RatingEvent, expected_score
+from .snookerdb_source import (
+    RemoteDatabaseInfo,
+    SnookerDBUpdateStatus,
+    check_snookerdb_update,
+    download_snookerdb,
+    fetch_remote_database_info,
+    git_blob_sha,
+)
 
 __all__ = [
     "BacktestMetrics",
@@ -29,11 +37,17 @@ __all__ = [
     "PlayerSummary",
     "RankingRow",
     "RatingEvent",
+    "RemoteDatabaseInfo",
     "RejectedMatchSample",
+    "SnookerDBUpdateStatus",
     "backtest_matches",
     "backtest_snookerdb",
     "build_history",
+    "check_snookerdb_update",
+    "download_snookerdb",
     "expected_score",
+    "fetch_remote_database_info",
+    "git_blob_sha",
     "ingest_snookerdb",
     "persist_history",
     "rate_matches",

@@ -11,6 +11,9 @@ const startYearInput = document.querySelector("#start-year");
 const endYearInput = document.querySelector("#end-year");
 const leaderboard = document.querySelector("#leaderboard");
 const statusText = document.querySelector("#status");
+const statMatches = document.querySelector("#stat-matches");
+const statPlayers = document.querySelector("#stat-players");
+const statRange = document.querySelector("#stat-range");
 const metaText = document.querySelector("#meta");
 const eraRange = document.querySelector("#era-range");
 const playersEl = document.querySelector("#players");
@@ -60,6 +63,9 @@ async function loadMetadata() {
   }
   statusText.className = "";
   statusText.textContent = `${Number(data.usable_matches ?? 0).toLocaleString()} usable matches`;
+  statMatches.textContent = Number(data.usable_matches ?? 0).toLocaleString();
+  statPlayers.textContent = Number(data.unique_players ?? 0).toLocaleString();
+  statRange.textContent = `${trimDate(data.earliest_match).slice(0, 4)}-${trimDate(data.latest_match).slice(0, 4)}`;
   metaText.textContent = `${trimDate(data.earliest_match)} to ${trimDate(data.latest_match)}`;
   if (!startYearInput.value) {
     startYearInput.value = trimDate(data.earliest_match).slice(0, 4);
@@ -359,13 +365,13 @@ function drawSeriesChart(canvas, series) {
   const maxX = Math.max(...allPoints.map((point) => point.x));
   const minY = Math.min(...allPoints.map((point) => point.y));
   const maxY = Math.max(...allPoints.map((point) => point.y));
-  const pad = { left: 48, right: 18, top: 18, bottom: 34 };
+  const pad = { left: 52, right: 22, top: 20, bottom: 46 };
   const width = canvas.width - pad.left - pad.right;
   const height = canvas.height - pad.top - pad.bottom;
   const ySpan = Math.max(1, maxY - minY);
   const xSpan = Math.max(1, maxX - minX);
 
-  drawGrid(ctx, canvas, pad, width, height, minY, maxY);
+  drawGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX);
 
   active.forEach((item) => {
     ctx.strokeStyle = item.color;
@@ -383,10 +389,10 @@ function drawSeriesChart(canvas, series) {
     ctx.stroke();
   });
 
-  drawLegend(ctx, active, pad.left, canvas.height - 12);
+  drawLegend(ctx, active, pad.left, 14);
 }
 
-function drawGrid(ctx, canvas, pad, width, height, minY, maxY) {
+function drawGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX) {
   ctx.strokeStyle = "#d8e1e8";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i += 1) {
@@ -402,6 +408,20 @@ function drawGrid(ctx, canvas, pad, width, height, minY, maxY) {
   ctx.textAlign = "right";
   ctx.fillText(Math.round(maxY), pad.left - 8, pad.top + 4);
   ctx.fillText(Math.round(minY), pad.left - 8, pad.top + height);
+
+  const years = yearTicks(minX, maxX, width);
+  ctx.textAlign = "center";
+  years.forEach((year) => {
+    const xValue = Date.parse(`${year}-01-01`);
+    const x = pad.left + ((xValue - minX) / Math.max(1, maxX - minX)) * width;
+    ctx.strokeStyle = "rgba(216, 226, 222, 0.7)";
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + height + 4);
+    ctx.stroke();
+    ctx.fillStyle = "#66717f";
+    ctx.fillText(String(year), x, pad.top + height + 22);
+  });
 }
 
 function drawEraChart(canvas, periods) {
@@ -412,7 +432,7 @@ function drawEraChart(canvas, periods) {
   }
   const topLeaders = [...new Set(periods.map((period) => period.leaders[0]?.player_id).filter(Boolean))];
   const colorFor = (playerId) => palette[Math.max(0, topLeaders.indexOf(playerId)) % palette.length];
-  const pad = { left: 48, right: 18, top: 22, bottom: 34 };
+  const pad = { left: 52, right: 22, top: 24, bottom: 42 };
   const width = canvas.width - pad.left - pad.right;
   const height = canvas.height - pad.top - pad.bottom;
   const years = periods.map((period) => Number(period.year));
@@ -433,10 +453,11 @@ function drawEraChart(canvas, periods) {
 
   ctx.fillStyle = "#18212b";
   ctx.font = "12px system-ui, sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(String(minYear), pad.left, canvas.height - 12);
-  ctx.textAlign = "right";
-  ctx.fillText(String(maxYear), canvas.width - pad.right, canvas.height - 12);
+  ctx.textAlign = "center";
+  yearTicks(Date.parse(`${minYear}-01-01`), Date.parse(`${maxYear}-12-31`), width).forEach((year) => {
+    const x = pad.left + ((year - minYear) / Math.max(1, maxYear - minYear)) * width;
+    ctx.fillText(String(year), x, canvas.height - 14);
+  });
 
   const legend = topLeaders.slice(0, 6).map((id) => {
     const period = periods.find((item) => item.leaders[0]?.player_id === id);
@@ -474,6 +495,27 @@ function downsample(points, limit) {
   }
   const step = Math.ceil(points.length / limit);
   return points.filter((_, index) => index % step === 0 || index === points.length - 1);
+}
+
+function yearTicks(minX, maxX, width) {
+  const minYear = new Date(minX).getFullYear();
+  const maxYear = new Date(maxX).getFullYear();
+  const span = Math.max(1, maxYear - minYear);
+  const targetTicks = Math.max(4, Math.min(10, Math.floor(width / 95)));
+  const rawStep = Math.ceil(span / targetTicks);
+  const step = rawStep <= 1 ? 1 : rawStep <= 2 ? 2 : rawStep <= 5 ? 5 : 10;
+  const first = Math.ceil(minYear / step) * step;
+  const ticks = [];
+  for (let year = first; year <= maxYear; year += step) {
+    ticks.push(year);
+  }
+  if (!ticks.includes(minYear)) {
+    ticks.unshift(minYear);
+  }
+  if (!ticks.includes(maxYear)) {
+    ticks.push(maxYear);
+  }
+  return [...new Set(ticks)].sort((a, b) => a - b);
 }
 
 drawEmptyChart(compareChart, "Loading");

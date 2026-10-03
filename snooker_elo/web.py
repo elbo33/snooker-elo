@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import sqlite3
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
@@ -42,6 +43,9 @@ def _handler_factory(db_path: Path):
             if parsed.path == "/styles.css":
                 self._serve_static("styles.css", "text/css; charset=utf-8")
                 return
+            if parsed.path.startswith("/assets/"):
+                self._serve_static(parsed.path.removeprefix("/"), None)
+                return
             if parsed.path.startswith("/api/"):
                 self._serve_api(parsed.path, parse_qs(parsed.query))
                 return
@@ -50,14 +54,14 @@ def _handler_factory(db_path: Path):
         def log_message(self, format: str, *args) -> None:
             return
 
-        def _serve_static(self, filename: str, content_type: str) -> None:
+        def _serve_static(self, filename: str, content_type: str | None) -> None:
             path = STATIC_DIR / filename
-            if not path.exists():
+            if not path.exists() or not path.is_file():
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
             body = path.read_bytes()
             self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Type", content_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

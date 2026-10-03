@@ -3,43 +3,69 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Snooker Elo</title>
+    <title>Snooker Elo Archive</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <h1>Snooker Elo</h1>
-        <p id="status">Loading</p>
+    <header class="hero">
+      <nav class="nav">
+        <strong>Snooker Elo Archive</strong>
+        <span id="status">Loading</span>
+      </nav>
+
+      <div class="hero-content">
+        <p class="eyebrow">Historical ratings from 1907 to today</p>
+        <h1>Snooker Elo Archive</h1>
+        <p class="hero-copy">
+          Explore the rise, reign and rivalry of snooker's great eras through Match Elo and Frame Elo.
+        </p>
+        <div class="hero-stats">
+          <div>
+            <strong id="stat-matches">-</strong>
+            <span>rated matches</span>
+          </div>
+          <div>
+            <strong id="stat-players">-</strong>
+            <span>players</span>
+          </div>
+          <div>
+            <strong id="stat-range">-</strong>
+            <span>archive span</span>
+          </div>
+        </div>
       </div>
-      <form id="controls" class="controls">
-        <label>
-          Rating
-          <select id="rating">
-            <option value="match">Match Elo</option>
-            <option value="frame">Frame Elo</option>
-          </select>
-        </label>
-        <label>
-          Leaderboard Date
-          <input id="date" type="date" />
-        </label>
-        <label>
-          From
-          <input id="start-year" type="number" min="1900" max="2100" step="1" />
-        </label>
-        <label>
-          To
-          <input id="end-year" type="number" min="1900" max="2100" step="1" />
-        </label>
-        <button type="submit">Refresh</button>
-      </form>
     </header>
 
     <main class="dashboard">
+      <section class="control-band" aria-label="Analysis controls">
+        <form id="controls" class="controls">
+          <label>
+            Rating
+            <select id="rating">
+              <option value="match">Match Elo</option>
+              <option value="frame">Frame Elo</option>
+            </select>
+          </label>
+          <label>
+            Leaderboard Date
+            <input id="date" type="date" />
+          </label>
+          <label>
+            From
+            <input id="start-year" type="number" min="1900" max="2100" step="1" />
+          </label>
+          <label>
+            To
+            <input id="end-year" type="number" min="1900" max="2100" step="1" />
+          </label>
+          <button type="submit">Refresh</button>
+        </form>
+      </section>
+
       <section class="panel compare-panel">
         <div class="panel-head">
           <div>
+            <p class="eyebrow dark">Rivalries through time</p>
             <h2>Elo Evolution</h2>
             <span id="meta"></span>
           </div>
@@ -50,23 +76,27 @@
         </div>
         <div id="players" class="search-results"></div>
         <div id="compare-list" class="chips"></div>
-        <canvas id="compare-chart" width="1100" height="420"></canvas>
+        <canvas id="compare-chart" width="1200" height="460"></canvas>
       </section>
 
       <section class="panel eras-panel">
         <div class="panel-head">
           <div>
-            <h2>Yearly No.1</h2>
+            <p class="eyebrow dark">Best in the world</p>
+            <h2>Yearly No.1 Timeline</h2>
             <span id="era-range"></span>
           </div>
         </div>
-        <canvas id="era-chart" width="1100" height="220"></canvas>
+        <canvas id="era-chart" width="1200" height="240"></canvas>
         <div id="dominance" class="dominance-list"></div>
       </section>
 
       <section class="panel leaderboard-panel">
         <div class="panel-head">
-          <h2>Leaderboard</h2>
+          <div>
+            <p class="eyebrow dark">Snapshot</p>
+            <h2>Leaderboard</h2>
+          </div>
         </div>
         <table>
           <thead>
@@ -84,10 +114,13 @@
 
       <section class="panel player-panel">
         <div class="panel-head">
-          <h2>Player</h2>
+          <div>
+            <p class="eyebrow dark">Career profile</p>
+            <h2>Player Focus</h2>
+          </div>
         </div>
         <div id="player-detail"></div>
-        <canvas id="history-chart" width="720" height="260"></canvas>
+        <canvas id="history-chart" width="760" height="280"></canvas>
       </section>
     </main>
 

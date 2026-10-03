@@ -78,44 +78,81 @@
 
       <section class="chapter chapter-dynasties">
         <div class="chapter-kicker">Chapter II</div>
-        <h2>The Dynasties</h2>
-        <p class="chapter-question">Who actually ruled the game?</p>
+        <h2>Who Really Ruled Their Era?</h2>
+        <p class="chapter-question">Being No.1 is one thing. Leaving the rest of the field behind is another.</p>
 
-        <div class="era-scenes">
-          <article class="era-scene">
-            <div class="era-year">1984</div>
-            <div>
-              <h3>Davis owned an era.</h3>
-              <p>For years, the rest of professional snooker was trying to catch him.</p>
-            </div>
-            <div class="photo-slot small">
-              <span>Steve Davis image slot</span>
-            </div>
-          </article>
-          <article class="era-scene">
-            <div class="era-year">1994</div>
-            <div>
-              <h3>Hendry stood alone.</h3>
-              <p>The gap had become enormous, and the graph begins to look less like form than rule.</p>
-            </div>
-            <div class="photo-slot small">
-              <span>Stephen Hendry image slot</span>
-            </div>
-          </article>
-          <article class="era-scene">
-            <div class="era-year">2001</div>
-            <div>
-              <h3>A new order.</h3>
-              <p>The Class of '92 turned the sport into a long argument about peak and longevity.</p>
-            </div>
-            <div class="photo-slot small">
-              <span>Class of '92 image slot</span>
-            </div>
-          </article>
+        <div class="dynasty-hero">
+          <div class="photo-slot dynasty-photo">
+            <span>Historical image slot</span>
+            <strong id="dynasty-player">Stephen Hendry</strong>
+          </div>
+          <div class="dynasty-intro">
+            <div id="dynasty-period" class="dynasty-period">Loading dynasty period</div>
+            <h3 id="dynasty-title">The Hendry Years</h3>
+            <p id="dynasty-copy">
+              At his peak, the question was not whether he was No.1. It was how far behind everyone else had become.
+            </p>
+            <p id="dynasty-coverage" class="coverage-note">End-of-month Elo snapshots.</p>
+          </div>
         </div>
 
-        <canvas id="era-chart" width="1200" height="240"></canvas>
-        <div id="dominance" class="dominance-list"></div>
+        <div class="dynasty-control-row">
+          <span>Against</span>
+          <div id="dynasty-baseline" class="segmented-control" aria-label="Compare leader against">
+            <button type="button" data-baseline="gap_to_second">#2</button>
+            <button type="button" data-baseline="gap_to_top5_field">Top 5</button>
+            <button type="button" data-baseline="gap_to_top10_field" class="active">Top 10</button>
+          </div>
+        </div>
+
+        <section class="dynasty-visual">
+          <div class="section-title">
+            <span class="eyebrow dark">Leader vs the field</span>
+            <h3>How far ahead did the No.1 really stand?</h3>
+          </div>
+          <canvas id="dynasty-main-chart" width="1200" height="420"></canvas>
+        </section>
+
+        <section class="dynasty-gap-panel">
+          <div>
+            <span class="eyebrow dark">Dominance above the field</span>
+            <strong id="dynasty-gap">+0 Elo</strong>
+            <p id="dynasty-gap-label">Peak gap above the Top 10 field average</p>
+          </div>
+          <canvas id="dynasty-gap-chart" width="1200" height="320"></canvas>
+        </section>
+
+        <section class="field-portrait">
+          <div class="section-title">
+            <span class="eyebrow dark">Peak dominance portrait</span>
+            <h3 id="field-snapshot">The field at the strongest snapshot</h3>
+          </div>
+          <div id="dynasty-field" class="field-list"></div>
+        </section>
+
+        <section>
+          <div class="section-title">
+            <span class="eyebrow dark">Compare dynasties</span>
+            <h3>Who separated furthest from their generation?</h3>
+          </div>
+          <canvas id="dynasty-compare-chart" width="1200" height="360"></canvas>
+        </section>
+
+        <section>
+          <div class="section-title">
+            <span class="eyebrow dark">Dynasty records</span>
+            <h3>Every number has a job.</h3>
+          </div>
+          <div id="dominance" class="dominance-list"></div>
+        </section>
+
+        <section>
+          <div class="section-title">
+            <span class="eyebrow dark">Era navigator</span>
+            <h3>Explore another dynasty</h3>
+          </div>
+          <div id="dynasty-navigator" class="dynasty-navigator"></div>
+        </section>
       </section>
 
       <section class="chapter chapter-rivals" id="rivals">

@@ -84,6 +84,18 @@ def test_historical_queries_and_ingestion_validation(tmp_path):
     assert peaks[0]["player_id"] == "/player/a"
     assert peaks[0]["rating"] >= peaks[1]["rating"]
 
+    dynasty = history.dynasty_dominance(player_name="Player A", rating="match", compare_player_names=["Player B"])
+    selected = dynasty["selected"]
+    assert selected["player_name"] == "Player A"
+    assert selected["period"]["months_at_number_one"] == 1
+    assert selected["summary"]["cumulative_months_at_number_one"] == 1
+    assert selected["points"][0]["gap_to_second"] > 0
+    assert selected["points"][0]["gap_to_top10_field"] is None
+    assert selected["points"][0]["coverage"] == "limited_historical_field_data"
+    assert selected["points"][0]["top10"][0]["player_id"] == "/player/a"
+    assert dynasty["comparison"][0]["points"][0]["months_since_start"] == 0
+    assert dynasty["definitions"]["gap_to_top10_field"] == "selected player Elo minus the average Elo of ranks 2-11"
+
 
 def test_input_order_does_not_affect_distinct_date_results(tmp_path):
     source = tmp_path / "snookerdb.db"

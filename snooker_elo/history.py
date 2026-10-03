@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import sqlite3
 from collections import defaultdict
 from dataclasses import asdict
@@ -364,6 +365,139 @@ class HistoricalRatings:
             key=lambda row: (-int(row["years_at_number_one"]), -int(row["longest_streak"]), str(row["player_name"])),
         )[:limit]
 
+    def dynasty_dominance(
+        self,
+        player_id: str | None = None,
+        player_name: str | None = None,
+        rating: RatingKind = "match",
+        compare_player_names: Iterable[str] = (),
+    ) -> dict[str, object]:
+        selected = self._resolve_player(player_id=player_id, player_name=player_name)
+        if selected is None:
+            raise ValueError("selected dynasty player not found")
+
+        compare_players = [selected]
+        for name in compare_player_names:
+            resolved = self._resolve_player(player_name=name)
+            if resolved is not None and resolved["player_id"] not in {p["player_id"] for p in compare_players}:
+                compare_players.append(resolved)
+
+        tracked_ids = [str(player["player_id"]) for player in compare_players]
+        snapshots = self._monthly_field_snapshots(rating=rating, tracked_player_ids=tracked_ids)
+        profiles = {
+            str(player["player_id"]): _dominance_profile_for_player(str(player["player_id"]), snapshots)
+            for player in compare_players
+        }
+        selected_profile = profiles[str(selected["player_id"])]
+        comparison = [
+            {
+                "player_id": player["player_id"],
+                "player_name": player["player_name"],
+                "period": profiles[str(player["player_id"])]["period"],
+                "points": profiles[str(player["player_id"])]["relative_points"],
+            }
+            for player in compare_players
+        ]
+        return {
+            "rating": rating,
+            "selected": selected_profile,
+            "comparison": comparison,
+            "definitions": {
+                "gap_to_second": "selected player Elo minus rank #2 Elo",
+                "gap_to_top5_field": "selected player Elo minus the average Elo of ranks 2-6",
+                "gap_to_top10_field": "selected player Elo minus the average Elo of ranks 2-11",
+                "snapshot_frequency": "end-of-month snapshots",
+            },
+        }
+
+    def _resolve_player(
+        self, player_id: str | None = None, player_name: str | None = None
+    ) -> dict[str, str] | None:
+        with self._connect() as conn:
+            if player_id:
+                row = conn.execute(
+                    "SELECT player_id, player_name FROM players WHERE player_id = ?",
+                    (player_id,),
+                ).fetchone()
+                if row is not None:
+                    return {"player_id": row["player_id"], "player_name": row["player_name"]}
+            if player_name:
+                row = conn.execute(
+                    """
+                    SELECT player_id, player_name
+                    FROM players
+                    WHERE lower(player_name) = lower(?)
+                    ORDER BY player_name ASC
+                    LIMIT 1
+                    """,
+                    (player_name,),
+                ).fetchone()
+                if row is not None:
+                    return {"player_id": row["player_id"], "player_name": row["player_name"]}
+        return None
+
+    def _monthly_field_snapshots(
+        self, rating: RatingKind, tracked_player_ids: Iterable[str]
+    ) -> list[dict[str, object]]:
+        rating_column = _rating_column(rating)
+        metadata = self.build_metadata()
+        earliest = _metadata_datetime(metadata.get("earliest_match"))
+        latest = _metadata_datetime(metadata.get("latest_match"))
+        if earliest is None or latest is None:
+            return []
+
+        cutoffs = _month_end_cutoffs(earliest, latest)
+        tracked = set(tracked_player_ids)
+        ratings: dict[str, tuple[str, float]] = {}
+        snapshots: list[dict[str, object]] = []
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT event_id, played_at, player_id, player_name, {rating_column} AS rating
+                FROM rating_events
+                ORDER BY played_at ASC, event_id ASC
+                """
+            )
+            current = next(rows, None)
+            for cutoff in cutoffs:
+                cutoff_text = cutoff.isoformat()
+                while current is not None and current["played_at"] <= cutoff_text:
+                    ratings[current["player_id"]] = (current["player_name"], float(current["rating"]))
+                    current = next(rows, None)
+                if not ratings:
+                    continue
+                ordered = sorted(ratings.items(), key=lambda item: (-item[1][1], item[1][0], item[0]))
+                top11 = [
+                    {
+                        "rank": index + 1,
+                        "player_id": player_id,
+                        "player_name": name_rating[0],
+                        "rating": name_rating[1],
+                    }
+                    for index, (player_id, name_rating) in enumerate(ordered[:11])
+                ]
+                tracked_state = {}
+                for index, (pid, name_rating) in enumerate(ordered):
+                    if pid in tracked:
+                        tracked_state[pid] = {
+                            "rank": index + 1,
+                            "player_id": pid,
+                            "player_name": name_rating[0],
+                            "rating": name_rating[1],
+                        }
+                    if len(tracked_state) == len(tracked):
+                        break
+                snapshots.append(
+                    {
+                        "date": cutoff,
+                        "top11": top11,
+                        "tracked": tracked_state,
+                        "active_players": len(ordered),
+                    }
+                )
+        return snapshots
+
     def build_metadata(self) -> dict[str, str]:
         with self._connect() as conn:
             rows = conn.execute("SELECT key, value FROM build_metadata ORDER BY key").fetchall()
@@ -679,6 +813,160 @@ def _metadata_datetime(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _month_end_cutoffs(start: datetime, end: datetime) -> list[datetime]:
+    cutoffs = []
+    year, month = start.year, start.month
+    while (year, month) <= (end.year, end.month):
+        last_day = calendar.monthrange(year, month)[1]
+        cutoff = datetime.combine(date(year, month, last_day), time.max)
+        cutoffs.append(min(cutoff, end))
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+    return cutoffs
+
+
+def _dominance_profile_for_player(player_id: str, snapshots: list[dict[str, object]]) -> dict[str, object]:
+    points = [_dominance_point(player_id, snapshot) for snapshot in snapshots]
+    points = [point for point in points if point is not None]
+    reigns = _reign_intervals(points)
+    period = max(reigns, key=lambda reign: reign["months_at_number_one"], default=None)
+    if period is None and points:
+        best = max(points, key=lambda point: point["gap_to_top10_field"] if point["gap_to_top10_field"] is not None else -9999)
+        period = {
+            "start": best["date"],
+            "end": best["date"],
+            "months_at_number_one": 0,
+            "label": "No sustained monthly #1 reign in this range",
+        }
+    elif period is not None:
+        period["label"] = _format_month_span(int(period["months_at_number_one"]))
+
+    period_points = [
+        point
+        for point in points
+        if period is not None and datetime.fromisoformat(str(period["start"])) <= datetime.fromisoformat(point["date"]) <= datetime.fromisoformat(str(period["end"]))
+    ]
+    if not period_points:
+        period_points = points
+
+    peak = max(
+        period_points,
+        key=lambda point: point["gap_to_top10_field"] if point["gap_to_top10_field"] is not None else -9999,
+        default=None,
+    )
+    return {
+        "player_id": player_id,
+        "player_name": points[0]["player_name"] if points else player_id,
+        "period": period,
+        "reigns": reigns,
+        "summary": {
+            "number_of_reigns": len(reigns),
+            "cumulative_months_at_number_one": sum(int(reign["months_at_number_one"]) for reign in reigns),
+            "longest_reign": max((int(reign["months_at_number_one"]) for reign in reigns), default=0),
+        },
+        "points": period_points,
+        "relative_points": _relative_points(period_points),
+        "peak_snapshot": peak,
+    }
+
+
+def _dominance_point(player_id: str, snapshot: dict[str, object]) -> dict[str, object] | None:
+    tracked = snapshot["tracked"]
+    assert isinstance(tracked, dict)
+    selected = tracked.get(player_id)
+    if selected is None:
+        return None
+    top11 = snapshot["top11"]
+    assert isinstance(top11, list)
+    date_value = snapshot["date"]
+    assert isinstance(date_value, datetime)
+    selected_rating = float(selected["rating"])
+    second_rating = _rating_at_rank(top11, 2)
+    top5_field_average = _average_ranks(top11, 2, 6)
+    top10_field_average = _average_ranks(top11, 2, 11)
+    return {
+        "date": date_value.isoformat(),
+        "player_id": selected["player_id"],
+        "player_name": selected["player_name"],
+        "rank": int(selected["rank"]),
+        "rating": selected_rating,
+        "second_elo": second_rating,
+        "top5_field_average": top5_field_average,
+        "top10_field_average": top10_field_average,
+        "gap_to_second": selected_rating - second_rating if second_rating is not None else None,
+        "gap_to_top5_field": selected_rating - top5_field_average if top5_field_average is not None else None,
+        "gap_to_top10_field": selected_rating - top10_field_average if top10_field_average is not None else None,
+        "top10": top11[:10],
+        "active_players": snapshot["active_players"],
+        "coverage": "full_top10_field" if len(top11) >= 11 else "limited_historical_field_data",
+    }
+
+
+def _reign_intervals(points: list[dict[str, object]]) -> list[dict[str, object]]:
+    reigns = []
+    current: list[dict[str, object]] = []
+    for point in points:
+        if point["rank"] == 1:
+            current.append(point)
+        elif current:
+            reigns.append(_reign_from_points(current))
+            current = []
+    if current:
+        reigns.append(_reign_from_points(current))
+    return reigns
+
+
+def _reign_from_points(points: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "start": points[0]["date"],
+        "end": points[-1]["date"],
+        "months_at_number_one": len(points),
+    }
+
+
+def _relative_points(points: list[dict[str, object]]) -> list[dict[str, object]]:
+    if not points:
+        return []
+    start = datetime.fromisoformat(points[0]["date"])
+    relative = []
+    for point in points:
+        current = datetime.fromisoformat(point["date"])
+        relative.append(
+            {
+                "months_since_start": (current.year - start.year) * 12 + current.month - start.month,
+                "date": point["date"],
+                "gap_to_top10_field": point["gap_to_top10_field"],
+            }
+        )
+    return relative
+
+
+def _rating_at_rank(top: list[dict[str, object]], rank: int) -> float | None:
+    for row in top:
+        if row["rank"] == rank:
+            return float(row["rating"])
+    return None
+
+
+def _average_ranks(top: list[dict[str, object]], first_rank: int, last_rank: int) -> float | None:
+    ratings = [float(row["rating"]) for row in top if first_rank <= int(row["rank"]) <= last_rank]
+    if len(ratings) != last_rank - first_rank + 1:
+        return None
+    return sum(ratings) / len(ratings)
+
+
+def _format_month_span(months: int) -> str:
+    years, remainder = divmod(months, 12)
+    if years and remainder:
+        return f"{years} years, {remainder} months"
+    if years:
+        return f"{years} years"
+    return f"{months} months"
 
 
 def _rating_column(rating: RatingKind) -> str:

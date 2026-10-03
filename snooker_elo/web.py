@@ -133,6 +133,20 @@ def _handler_factory(db_path: Path):
                             ),
                         }
                     )
+                elif path == "/api/dynasty":
+                    self._json(
+                        history.dynasty_dominance(
+                            player_id=_optional_param(params, "player_id"),
+                            player_name=_param(params, "player_name", "Stephen Hendry"),
+                            rating=_param(params, "rating", "match"),
+                            compare_player_names=[
+                                "Steve Davis",
+                                "Stephen Hendry",
+                                "Ronnie O'Sullivan",
+                                "Judd Trump",
+                            ],
+                        )
+                    )
                 else:
                     self.send_error(HTTPStatus.NOT_FOUND)
             except Exception as exc:

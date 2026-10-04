@@ -14,6 +14,8 @@ from urllib.parse import parse_qs, urlparse
 from .history import HistoricalRatings
 
 STATIC_DIR = Path(__file__).with_name("static")
+CURATED_DYNASTIES = ["Steve Davis", "Stephen Hendry", "Ronnie O'Sullivan", "Judd Trump"]
+_DYNASTY_CACHE: dict[tuple[str, int, str], dict[str, object]] = {}
 
 
 def main() -> None:
@@ -133,18 +135,16 @@ def _handler_factory(db_path: Path):
                             ),
                         }
                     )
+                elif path == "/api/dynasties":
+                    rating = _param(params, "rating", "match")
+                    self._json(_cached_dynasties(history, db_path, rating))
                 elif path == "/api/dynasty":
                     self._json(
                         history.dynasty_dominance(
                             player_id=_optional_param(params, "player_id"),
                             player_name=_param(params, "player_name", "Stephen Hendry"),
                             rating=_param(params, "rating", "match"),
-                            compare_player_names=[
-                                "Steve Davis",
-                                "Stephen Hendry",
-                                "Ronnie O'Sullivan",
-                                "Judd Trump",
-                            ],
+                            compare_player_names=CURATED_DYNASTIES,
                         )
                     )
                 else:
@@ -153,7 +153,7 @@ def _handler_factory(db_path: Path):
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
         def _json(self, payload: object, status: HTTPStatus = HTTPStatus.OK) -> None:
-            body = json.dumps(_jsonable(payload), indent=2).encode()
+            body = json.dumps(_jsonable(payload), separators=(",", ":")).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -176,6 +176,24 @@ def _optional_param(params: dict[str, list[str]], name: str) -> str | None:
 def _optional_int(params: dict[str, list[str]], name: str) -> int | None:
     value = _optional_param(params, name)
     return int(value) if value is not None else None
+
+
+def _cached_dynasties(history: HistoricalRatings, db_path: Path, rating: str) -> dict[str, object]:
+    resolved = db_path.resolve()
+    cache_key = (str(resolved), resolved.stat().st_mtime_ns, rating)
+    cached = _DYNASTY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    payload = history.dynasty_collection(CURATED_DYNASTIES, rating=rating, compact=True)
+    payload["players"] = CURATED_DYNASTIES
+    payload["cache"] = {
+        "strategy": "server-side, invalidated when the generated history database timestamp changes",
+        "source": str(db_path),
+    }
+    _DYNASTY_CACHE.clear()
+    _DYNASTY_CACHE[cache_key] = payload
+    return payload
 
 
 def _jsonable(value: object) -> object:

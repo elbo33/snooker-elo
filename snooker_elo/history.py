@@ -376,38 +376,56 @@ class HistoricalRatings:
         if selected is None:
             raise ValueError("selected dynasty player not found")
 
-        compare_players = [selected]
-        for name in compare_player_names:
-            resolved = self._resolve_player(player_name=name)
-            if resolved is not None and resolved["player_id"] not in {p["player_id"] for p in compare_players}:
-                compare_players.append(resolved)
-
-        tracked_ids = [str(player["player_id"]) for player in compare_players]
-        snapshots = self._monthly_field_snapshots(rating=rating, tracked_player_ids=tracked_ids)
-        profiles = {
-            str(player["player_id"]): _dominance_profile_for_player(str(player["player_id"]), snapshots)
-            for player in compare_players
-        }
-        selected_profile = profiles[str(selected["player_id"])]
-        comparison = [
-            {
-                "player_id": player["player_id"],
-                "player_name": player["player_name"],
-                "period": profiles[str(player["player_id"])]["period"],
-                "points": profiles[str(player["player_id"])]["relative_points"],
-            }
-            for player in compare_players
-        ]
+        names = [str(selected["player_name"]), *compare_player_names]
+        collection = self.dynasty_collection(player_names=names, rating=rating)
+        selected_profile = next(
+            profile
+            for profile in collection["dynasties"]
+            if profile["player_id"] == selected["player_id"]
+        )
         return {
             "rating": rating,
             "selected": selected_profile,
+            "comparison": collection["comparison"],
+            "definitions": collection["definitions"],
+        }
+
+    def dynasty_collection(
+        self,
+        player_names: Iterable[str],
+        rating: RatingKind = "match",
+        compact: bool = False,
+    ) -> dict[str, object]:
+        players: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for name in player_names:
+            resolved = self._resolve_player(player_name=name)
+            if resolved is not None and resolved["player_id"] not in seen:
+                players.append(resolved)
+                seen.add(resolved["player_id"])
+
+        tracked_ids = [str(player["player_id"]) for player in players]
+        snapshots = self._monthly_field_snapshots(rating=rating, tracked_player_ids=tracked_ids)
+        profiles = [
+            _dominance_profile_for_player(str(player["player_id"]), snapshots)
+            for player in players
+        ]
+        if compact:
+            profiles = [_compact_dominance_profile(profile) for profile in profiles]
+        comparison = [
+            {
+                "player_id": profile["player_id"],
+                "player_name": profile["player_name"],
+                "period": profile["period"],
+                "points": profile["relative_points"],
+            }
+            for profile in profiles
+        ]
+        return {
+            "rating": rating,
+            "dynasties": profiles,
             "comparison": comparison,
-            "definitions": {
-                "gap_to_second": "selected player Elo minus rank #2 Elo",
-                "gap_to_top5_field": "selected player Elo minus the average Elo of ranks 2-6",
-                "gap_to_top10_field": "selected player Elo minus the average Elo of ranks 2-11",
-                "snapshot_frequency": "end-of-month snapshots",
-            },
+            "definitions": _dynasty_definitions(),
         }
 
     def _resolve_player(
@@ -815,6 +833,15 @@ def _metadata_datetime(value: str | None) -> datetime | None:
         return None
 
 
+def _dynasty_definitions() -> dict[str, str]:
+    return {
+        "gap_to_second": "selected player Elo minus rank #2 Elo",
+        "gap_to_top5_field": "selected player Elo minus the average Elo of ranks 2-6",
+        "gap_to_top10_field": "selected player Elo minus the average Elo of ranks 2-11",
+        "snapshot_frequency": "end-of-month snapshots",
+    }
+
+
 def _month_end_cutoffs(start: datetime, end: datetime) -> list[datetime]:
     cutoffs = []
     year, month = start.year, start.month
@@ -873,6 +900,24 @@ def _dominance_profile_for_player(player_id: str, snapshots: list[dict[str, obje
         "relative_points": _relative_points(period_points),
         "peak_snapshot": peak,
     }
+
+
+def _compact_dominance_profile(profile: dict[str, object]) -> dict[str, object]:
+    compact = dict(profile)
+    points = profile.get("points")
+    if isinstance(points, list):
+        compact["points"] = [
+            _without_field_snapshot(point)
+            for point in points
+            if isinstance(point, dict)
+        ]
+    return compact
+
+
+def _without_field_snapshot(point: dict[str, object]) -> dict[str, object]:
+    compact = dict(point)
+    compact.pop("top10", None)
+    return compact
 
 
 def _dominance_point(player_id: str, snapshot: dict[str, object]) -> dict[str, object] | None:

@@ -96,6 +96,16 @@ def test_historical_queries_and_ingestion_validation(tmp_path):
     assert dynasty["comparison"][0]["points"][0]["months_since_start"] == 0
     assert dynasty["definitions"]["gap_to_top10_field"] == "selected player Elo minus the average Elo of ranks 2-11"
 
+    dynasty_collection = history.dynasty_collection(["Player A", "Player B"], rating="match")
+    assert [profile["player_name"] for profile in dynasty_collection["dynasties"]] == ["Player A", "Player B"]
+    assert len(dynasty_collection["comparison"]) == 2
+    assert dynasty_collection["comparison"][0]["points"][0]["months_since_start"] == 0
+    assert dynasty_collection["dynasties"][0]["points"][0]["coverage"] == "limited_historical_field_data"
+
+    compact_collection = history.dynasty_collection(["Player A", "Player B"], rating="match", compact=True)
+    assert "top10" not in compact_collection["dynasties"][0]["points"][0]
+    assert "top10" in compact_collection["dynasties"][0]["peak_snapshot"]
+
 
 def test_input_order_does_not_affect_distinct_date_results(tmp_path):
     source = tmp_path / "snookerdb.db"

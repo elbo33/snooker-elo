@@ -5,7 +5,8 @@ const state = {
   metadataLoaded: false,
   dynastyPlayer: "Stephen Hendry",
   dynastyBaseline: "gap_to_top10_field",
-  dynastyData: null,
+  dynastyMode: "explore",
+  dynastyCollection: null,
 };
 
 const dateInput = document.querySelector("#date");
@@ -26,6 +27,10 @@ const dominanceEl = document.querySelector("#dominance");
 const peaksEl = document.querySelector("#peaks");
 const historyChart = document.querySelector("#history-chart");
 const compareChart = document.querySelector("#compare-chart");
+const dynastyLoadingEl = document.querySelector("#dynasty-loading");
+const dynastySelectorEl = document.querySelector("#dynasty-selector");
+const dynastyStickySelectorEl = document.querySelector("#dynasty-sticky-selector");
+const dynastyModeEl = document.querySelector(".dynasty-mode-row");
 const dynastyPlayerEl = document.querySelector("#dynasty-player");
 const dynastyPeriodEl = document.querySelector("#dynasty-period");
 const dynastyTitleEl = document.querySelector("#dynasty-title");
@@ -39,7 +44,9 @@ const dynastyGapChart = document.querySelector("#dynasty-gap-chart");
 const dynastyFieldEl = document.querySelector("#dynasty-field");
 const dynastySnapshotEl = document.querySelector("#field-snapshot");
 const dynastyCompareChart = document.querySelector("#dynasty-compare-chart");
-const dynastyNavigatorEl = document.querySelector("#dynasty-navigator");
+const dynastyComparePanel = document.querySelector("#dynasty-compare-panel");
+const dynastyNextEl = document.querySelector("#dynasty-next");
+const dynastyNextTitleEl = document.querySelector("#dynasty-next-title");
 const palette = ["#13795b", "#2f66b3", "#a56a21", "#7f4da0", "#b23b35", "#44515f", "#0f766e", "#8a5a44"];
 const defaultLegends = [
   "Ronnie O'Sullivan",
@@ -49,7 +56,6 @@ const defaultLegends = [
   "Mark Selby",
   "Judd Trump",
 ];
-const dynastyLegends = ["Steve Davis", "Stephen Hendry", "Ronnie O'Sullivan", "Judd Trump"];
 const baselineLabels = {
   gap_to_second: "#2 player",
   gap_to_top5_field: "Top 5 field average",
@@ -82,13 +88,28 @@ document.querySelectorAll(".preset-player").forEach((button) => {
 dynastyBaselineEl?.querySelectorAll("button").forEach((button) => {
   button.addEventListener("click", () => {
     state.dynastyBaseline = button.dataset.baseline;
-    renderDynasty(state.dynastyData);
+    renderDynasty();
   });
+});
+
+dynastyModeEl?.querySelectorAll("button").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.dynastyMode = button.dataset.mode;
+    renderDynasty();
+  });
+});
+
+dynastyNextEl?.addEventListener("click", () => {
+  const next = nextDynastyName();
+  if (next) {
+    selectDynasty(next);
+    document.querySelector("#dynasties")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 });
 
 window.addEventListener("resize", () => {
   renderCompare();
-  renderDynasty(state.dynastyData);
+  renderDynasty();
   if (state.selectedPlayer) {
     loadPlayer(state.selectedPlayer.player_id, state.selectedPlayer.player_name);
   }
@@ -97,7 +118,7 @@ window.addEventListener("resize", () => {
 async function refresh() {
   await loadMetadata();
   renderEloExplainer();
-  await Promise.all([loadRankings(), loadDynasty(), loadPeaks()]);
+  await Promise.all([loadRankings(), loadDynasties(), loadPeaks()]);
   if (!state.seeded) {
     await seedDefaultLegends();
   }
@@ -327,12 +348,10 @@ async function renderCompare() {
   );
 }
 
-async function loadDynasty(playerName = state.dynastyPlayer) {
-  state.dynastyPlayer = playerName;
+async function loadDynasties() {
   updateRangeText();
-  const data = await api(
-    `/api/dynasty?player_name=${encodeURIComponent(playerName)}&rating=${ratingInput.value}`,
-  );
+  dynastyLoadingEl.hidden = false;
+  const data = await api(`/api/dynasties?rating=${ratingInput.value}`);
   if (data.error) {
     drawEmptyChart(dynastyMainChart, "No dynasty data");
     drawEmptyChart(dynastyGapChart, "No dynasty data");
@@ -340,19 +359,31 @@ async function loadDynasty(playerName = state.dynastyPlayer) {
     dominanceEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
     return;
   }
-  state.dynastyData = data;
-  renderDynasty(data);
+  state.dynastyCollection = data;
+  if (!findDynasty(state.dynastyPlayer)) {
+    state.dynastyPlayer = data.dynasties?.[0]?.player_name || state.dynastyPlayer;
+  }
+  dynastyLoadingEl.hidden = true;
+  renderDynasty();
 }
 
-function renderDynasty(data) {
-  if (!data?.selected) {
+function selectDynasty(playerName) {
+  const started = performance.now();
+  state.dynastyPlayer = playerName;
+  renderDynasty();
+  window.__lastDynastySwitchMs = performance.now() - started;
+}
+
+function renderDynasty() {
+  const data = state.dynastyCollection;
+  const selected = findDynasty(state.dynastyPlayer);
+  if (!data?.dynasties?.length || !selected) {
     drawEmptyChart(dynastyMainChart, "Loading");
     drawEmptyChart(dynastyGapChart, "Loading");
     drawEmptyChart(dynastyCompareChart, "Loading");
     return;
   }
 
-  const selected = data.selected;
   const points = selected.points || [];
   const peak = selected.peak_snapshot;
   const baseline = state.dynastyBaseline;
@@ -362,6 +393,13 @@ function renderDynasty(data) {
   dynastyBaselineEl?.querySelectorAll("button").forEach((button) => {
     button.classList.toggle("active", button.dataset.baseline === baseline);
   });
+  dynastyModeEl?.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.mode === state.dynastyMode);
+  });
+  document.querySelectorAll(".dynasty-explore").forEach((element) => {
+    element.hidden = state.dynastyMode !== "explore";
+  });
+  dynastyComparePanel.hidden = state.dynastyMode !== "compare";
   dynastyPlayerEl.textContent = selected.player_name;
   dynastyPeriodEl.textContent = formatDominancePeriod(selected.period);
   dynastyTitleEl.textContent = `The ${surname(selected.player_name)} Years`;
@@ -375,12 +413,16 @@ function renderDynasty(data) {
     ? `${formatMonthYear(peak.date)}: the actual field chasing ${selected.player_name}`
     : "The field at the strongest snapshot";
 
-  drawDynastyFieldChart(dynastyMainChart, points);
-  drawDynastyGapChart(dynastyGapChart, points, baseline);
-  drawDynastyComparison(dynastyCompareChart, data.comparison || []);
+  renderDynastySelectors(data.dynasties || []);
+  if (state.dynastyMode === "explore") {
+    drawDynastyFieldChart(dynastyMainChart, points);
+    drawDynastyGapChart(dynastyGapChart, points, baseline);
+  } else {
+    drawDynastyComparison(dynastyCompareChart, data.comparison || []);
+  }
   renderFieldSnapshot(peak);
   renderDynastyRecords(selected);
-  renderDynastyNavigator(data.comparison || []);
+  renderNextDynasty();
 }
 
 async function loadPeaks() {
@@ -469,25 +511,50 @@ function renderDynastyRecords(selected) {
   `;
 }
 
-function renderDynastyNavigator(comparison) {
-  const byName = new Map(comparison.map((player) => [player.player_name, player]));
-  dynastyNavigatorEl.innerHTML = dynastyLegends
-    .map((name) => {
-      const player = byName.get(name);
-      const active = name === state.dynastyPlayer;
-      return `
-        <button type="button" class="dynasty-pick${active ? " active" : ""}" data-name="${escapeHtml(name)}">
-          <span>${escapeHtml(name)}</span>
-          <strong>${player?.period ? periodYears(player.period) : "No reign found"}</strong>
-        </button>
-      `;
-    })
+function renderDynastySelectors(dynasties) {
+  dynastySelectorEl.innerHTML = dynasties
+    .map((profile) => dynastySelectorButton(profile, "dynasty-name"))
     .join("");
-  dynastyNavigatorEl.querySelectorAll("button").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await loadDynasty(button.dataset.name);
-    });
+  dynastyStickySelectorEl.innerHTML = dynasties
+    .map((profile) => dynastySelectorButton(profile, "dynasty-sticky-name"))
+    .join("");
+  document.querySelectorAll("[data-dynasty-name]").forEach((button) => {
+    button.addEventListener("click", () => selectDynasty(button.dataset.dynastyName));
   });
+}
+
+function dynastySelectorButton(profile, className) {
+  const active = profile.player_name === state.dynastyPlayer;
+  return `
+    <button type="button" class="${className}${active ? " active" : ""}" data-dynasty-name="${escapeHtml(profile.player_name)}">
+      <span>${splitName(profile.player_name)}</span>
+      <strong>${profile.period ? periodYears(profile.period) : "No sustained reign"}</strong>
+    </button>
+  `;
+}
+
+function renderNextDynasty() {
+  const next = nextDynastyName();
+  if (!next) {
+    dynastyNextEl.hidden = true;
+    return;
+  }
+  dynastyNextEl.hidden = false;
+  dynastyNextTitleEl.textContent = next;
+  dynastyNextEl.textContent = `Explore ${next}`;
+}
+
+function findDynasty(playerName) {
+  return state.dynastyCollection?.dynasties?.find((profile) => profile.player_name === playerName) || null;
+}
+
+function nextDynastyName() {
+  const dynasties = state.dynastyCollection?.dynasties || [];
+  if (!dynasties.length) {
+    return null;
+  }
+  const index = dynasties.findIndex((profile) => profile.player_name === state.dynastyPlayer);
+  return dynasties[(index + 1 + dynasties.length) % dynasties.length]?.player_name || null;
 }
 
 async function seedDefaultLegends() {
@@ -606,6 +673,14 @@ function surname(name) {
   return parts[parts.length - 1]?.replace("O'Sullivan", "O'Sullivan") || "Dynasty";
 }
 
+function splitName(name) {
+  const parts = String(name || "").trim().split(/\s+/);
+  if (parts.length < 2) {
+    return escapeHtml(name);
+  }
+  return `${escapeHtml(parts.slice(0, -1).join(" "))}<br>${escapeHtml(parts.at(-1))}`;
+}
+
 function average(values) {
   const valid = values.filter(Number.isFinite);
   if (!valid.length) {
@@ -689,6 +764,7 @@ function drawSeriesChart(canvas, series) {
 
 function drawDynastyFieldChart(canvas, points) {
   const baselineKey = baselineSeries[state.dynastyBaseline] || "top10_field_average";
+  const baselineLabel = baselineLabels[state.dynastyBaseline] || "field average";
   const series = [
     {
       label: state.dynastyPlayer,
@@ -697,22 +773,10 @@ function drawDynastyFieldChart(canvas, points) {
       width: 3,
     },
     {
-      label: "#2",
-      color: "#c99a52",
-      points: points.map((point) => ({ x: Date.parse(point.date), y: point.second_elo })),
-      width: baselineKey === "second_elo" ? 2.8 : 1.4,
-    },
-    {
-      label: "Top 5 field",
-      color: "#4a75b8",
-      points: points.map((point) => ({ x: Date.parse(point.date), y: point.top5_field_average })),
-      width: baselineKey === "top5_field_average" ? 2.8 : 1.4,
-    },
-    {
-      label: "Top 10 field",
+      label: baselineLabel,
       color: "#9fcab5",
-      points: points.map((point) => ({ x: Date.parse(point.date), y: point.top10_field_average })),
-      width: baselineKey === "top10_field_average" ? 2.8 : 1.4,
+      points: points.map((point) => ({ x: Date.parse(point.date), y: point[baselineKey] })),
+      width: 2.4,
     },
   ].map((item) => ({
     ...item,
@@ -721,7 +785,7 @@ function drawDynastyFieldChart(canvas, points) {
 
   drawLineChart(canvas, series, {
     empty: "No dynasty chart data",
-    areaBetween: { upper: 0, lowerKey: baselineKey },
+    fillBetween: true,
   });
 }
 
@@ -782,6 +846,34 @@ function drawLineChart(canvas, series, options = {}) {
   const ySpan = Math.max(1, maxY - minY);
   const xSpan = Math.max(1, maxX - minX);
   drawChartGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX, options);
+
+  if (options.fillBetween && active.length >= 2) {
+    const upper = active[0].points;
+    const lower = new Map(active[1].points.map((point) => [point.x, point]));
+    const paired = upper
+      .map((point) => ({ upper: point, lower: lower.get(point.x) }))
+      .filter((pair) => pair.lower);
+    if (paired.length) {
+      ctx.beginPath();
+      paired.forEach((pair, index) => {
+        const x = pad.left + ((pair.upper.x - minX) / xSpan) * width;
+        const y = pad.top + height - ((pair.upper.y - minY) / ySpan) * height;
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      [...paired].reverse().forEach((pair) => {
+        const x = pad.left + ((pair.lower.x - minX) / xSpan) * width;
+        const y = pad.top + height - ((pair.lower.y - minY) / ySpan) * height;
+        ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = "rgba(201, 154, 82, 0.13)";
+      ctx.fill();
+    }
+  }
 
   if (options.fillToZero) {
     const line = active[0];

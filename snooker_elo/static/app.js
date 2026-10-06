@@ -32,6 +32,8 @@ const dynastySelectorEl = document.querySelector("#dynasty-selector");
 const dynastyStickySelectorEl = document.querySelector("#dynasty-sticky-selector");
 const dynastyModeEl = document.querySelector(".dynasty-mode-row");
 const dynastyPlayerEl = document.querySelector("#dynasty-player");
+const dynastyPhotoEl = document.querySelector(".dynasty-photo");
+const dynastyImageCreditEl = document.querySelector("#dynasty-image-credit");
 const dynastyPeriodEl = document.querySelector("#dynasty-period");
 const dynastyTitleEl = document.querySelector("#dynasty-title");
 const dynastyCopyEl = document.querySelector("#dynasty-copy");
@@ -66,8 +68,27 @@ const baselineSeries = {
   gap_to_top5_field: "top5_field_average",
   gap_to_top10_field: "top10_field_average",
 };
+const dynastyImages = {
+  "Steve Davis": {
+    src: "/assets/steve-davis.jpg",
+    credit: "Photo: seantruscott / Public domain",
+  },
+  "Stephen Hendry": {
+    src: "/assets/stephen-hendry.jpg",
+    credit: "Photo: Bill da Flute / CC BY-SA 3.0",
+  },
+  "Ronnie O'Sullivan": {
+    src: "/assets/ronnie-osullivan.jpg",
+    credit: "Photo: Eurosport / Tom Shaw / CC BY 3.0",
+  },
+  "Judd Trump": {
+    src: "/assets/judd-trump.jpg",
+    credit: "Photo: Martin Rulsch / CC BY-SA 4.0",
+  },
+};
 
 dateInput.value = new Date().toISOString().slice(0, 10);
+preloadDynastyImages();
 
 document.querySelector("#controls").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -400,6 +421,7 @@ function renderDynasty() {
     element.hidden = state.dynastyMode !== "explore";
   });
   dynastyComparePanel.hidden = state.dynastyMode !== "compare";
+  renderDynastyImage(selected.player_name);
   dynastyPlayerEl.textContent = selected.player_name;
   dynastyPeriodEl.textContent = formatDominancePeriod(selected.period);
   dynastyTitleEl.textContent = `The ${surname(selected.player_name)} Years`;
@@ -423,6 +445,24 @@ function renderDynasty() {
   renderFieldSnapshot(peak);
   renderDynastyRecords(selected);
   renderNextDynasty();
+}
+
+function renderDynastyImage(playerName) {
+  const image = dynastyImages[playerName];
+  if (!image) {
+    dynastyPhotoEl.style.removeProperty("--dynasty-image");
+    dynastyImageCreditEl.textContent = "Wikimedia Commons";
+    return;
+  }
+  dynastyPhotoEl.style.setProperty("--dynasty-image", `url("${image.src}")`);
+  dynastyImageCreditEl.textContent = image.credit;
+}
+
+function preloadDynastyImages() {
+  Object.values(dynastyImages).forEach((image) => {
+    const preload = new Image();
+    preload.src = image.src;
+  });
 }
 
 async function loadPeaks() {

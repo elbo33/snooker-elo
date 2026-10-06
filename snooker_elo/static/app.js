@@ -49,7 +49,7 @@ const dynastyCompareChart = document.querySelector("#dynasty-compare-chart");
 const dynastyComparePanel = document.querySelector("#dynasty-compare-panel");
 const dynastyNextEl = document.querySelector("#dynasty-next");
 const dynastyNextTitleEl = document.querySelector("#dynasty-next-title");
-const palette = ["#13795b", "#2f66b3", "#a56a21", "#7f4da0", "#b23b35", "#44515f", "#0f766e", "#8a5a44"];
+const palette = ["#0d5b45", "#315f96", "#946b34", "#765096", "#9f3b34", "#5d6660", "#287c74", "#8a5a44"];
 const defaultLegends = [
   "Ronnie O'Sullivan",
   "Stephen Hendry",
@@ -748,7 +748,7 @@ function escapeHtml(value) {
 
 function drawEmptyChart(canvas, label) {
   const ctx = prepareCanvas(canvas);
-  ctx.fillStyle = "#66717f";
+  ctx.fillStyle = "#7a817b";
   ctx.font = "14px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(label, canvas.width / 2, canvas.height / 2);
@@ -808,13 +808,13 @@ function drawDynastyFieldChart(canvas, points) {
   const series = [
     {
       label: state.dynastyPlayer,
-      color: "#f3ead9",
+      color: "#17211d",
       points: points.map((point) => ({ x: Date.parse(point.date), y: point.rating })),
       width: 3,
     },
     {
       label: baselineLabel,
-      color: "#9fcab5",
+      color: "#6b9d88",
       points: points.map((point) => ({ x: Date.parse(point.date), y: point[baselineKey] })),
       width: 2.4,
     },
@@ -835,7 +835,7 @@ function drawDynastyGapChart(canvas, points, baseline) {
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
   drawLineChart(
     canvas,
-    [{ label: `Gap vs ${baselineLabels[baseline]}`, color: "#c99a52", width: 3, points: gapPoints }],
+    [{ label: `Gap vs ${baselineLabels[baseline]}`, color: "#946b34", width: 3, points: gapPoints }],
     { empty: "No dominance gap data", zeroLine: true, fillToZero: true },
   );
 }
@@ -910,7 +910,7 @@ function drawLineChart(canvas, series, options = {}) {
         ctx.lineTo(x, y);
       });
       ctx.closePath();
-      ctx.fillStyle = "rgba(201, 154, 82, 0.13)";
+      ctx.fillStyle = "rgba(148, 107, 52, 0.12)";
       ctx.fill();
     }
   }
@@ -933,7 +933,7 @@ function drawLineChart(canvas, series, options = {}) {
     const lastX = pad.left + ((last.x - minX) / xSpan) * width;
     ctx.lineTo(lastX, zeroY);
     ctx.closePath();
-    ctx.fillStyle = "rgba(201, 154, 82, 0.15)";
+    ctx.fillStyle = "rgba(148, 107, 52, 0.14)";
     ctx.fill();
   }
 
@@ -963,7 +963,7 @@ function drawLineChart(canvas, series, options = {}) {
 }
 
 function drawGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX) {
-  ctx.strokeStyle = "#d8e1e8";
+  ctx.strokeStyle = "#dedbd2";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i += 1) {
     const y = pad.top + (height * i) / 4;
@@ -973,7 +973,7 @@ function drawGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX) {
     ctx.stroke();
   }
 
-  ctx.fillStyle = "#66717f";
+  ctx.fillStyle = "#7a817b";
   ctx.font = "12px system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.fillText(Math.round(maxY), pad.left - 8, pad.top + 4);
@@ -984,18 +984,18 @@ function drawGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX) {
   years.forEach((year) => {
     const xValue = Date.parse(`${year}-01-01`);
     const x = pad.left + ((xValue - minX) / Math.max(1, maxX - minX)) * width;
-    ctx.strokeStyle = "rgba(216, 226, 222, 0.7)";
+    ctx.strokeStyle = "rgba(23, 33, 29, 0.1)";
     ctx.beginPath();
     ctx.moveTo(x, pad.top);
     ctx.lineTo(x, pad.top + height + 4);
     ctx.stroke();
-    ctx.fillStyle = "#66717f";
+    ctx.fillStyle = "#7a817b";
     ctx.fillText(String(year), x, pad.top + height + 22);
   });
 }
 
 function drawChartGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX, options = {}) {
-  ctx.strokeStyle = "rgba(243, 234, 217, 0.12)";
+  ctx.strokeStyle = "rgba(23, 33, 29, 0.1)";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i += 1) {
     const y = pad.top + (height * i) / 4;
@@ -1007,14 +1007,14 @@ function drawChartGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX, 
 
   if (options.zeroLine && minY < 0 && maxY > 0) {
     const zeroY = pad.top + height - ((0 - minY) / Math.max(1, maxY - minY)) * height;
-    ctx.strokeStyle = "rgba(243, 234, 217, 0.28)";
+    ctx.strokeStyle = "rgba(23, 33, 29, 0.24)";
     ctx.beginPath();
     ctx.moveTo(pad.left, zeroY);
     ctx.lineTo(canvas.width - pad.right, zeroY);
     ctx.stroke();
   }
 
-  ctx.fillStyle = "rgba(243, 234, 217, 0.58)";
+  ctx.fillStyle = "rgba(23, 33, 29, 0.56)";
   ctx.font = "12px system-ui, sans-serif";
   ctx.textAlign = "right";
   for (let i = 0; i <= 4; i += 1) {
@@ -1028,12 +1028,12 @@ function drawChartGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX, 
   xTicks.forEach((tick) => {
     const value = options.xFormatter ? tick : Date.parse(`${tick}-01-01`);
     const x = pad.left + ((value - minX) / Math.max(1, maxX - minX)) * width;
-    ctx.strokeStyle = "rgba(243, 234, 217, 0.08)";
+    ctx.strokeStyle = "rgba(23, 33, 29, 0.08)";
     ctx.beginPath();
     ctx.moveTo(x, pad.top);
     ctx.lineTo(x, pad.top + height + 4);
     ctx.stroke();
-    ctx.fillStyle = "rgba(243, 234, 217, 0.56)";
+    ctx.fillStyle = "rgba(23, 33, 29, 0.52)";
     ctx.fillText(options.xFormatter ? options.xFormatter(tick) : String(tick), x, pad.top + height + 24);
   });
 }
@@ -1054,7 +1054,7 @@ function drawLegend(ctx, series, x, y) {
   series.slice(0, 6).forEach((item) => {
     ctx.fillStyle = item.color;
     ctx.fillRect(x + offset, y - 8, 10, 10);
-    ctx.fillStyle = "#66717f";
+    ctx.fillStyle = "#7a817b";
     const label = item.label.slice(0, 18);
     ctx.fillText(label, x + offset + 14, y);
     offset += Math.min(142, 34 + label.length * 7);

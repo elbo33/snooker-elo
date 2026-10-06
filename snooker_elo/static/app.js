@@ -717,8 +717,11 @@ function drawPeakTimeline(canvas, players, activeIndex) {
   );
   const minX = Math.floor(Math.min(...allPoints.map((point) => point.x)));
   const maxX = Math.ceil(Math.max(...allPoints.map((point) => point.x)));
-  const maxY = Math.ceil(Math.max(...allPoints.map((point) => point.y)) + 16);
-  const minY = ratingInput.value === "frame" ? 1660 : 1900;
+  let minY = Math.min(...allPoints.map((point) => point.y));
+  let maxY = Math.max(...allPoints.map((point) => point.y));
+  const yPadding = Math.max(24, (maxY - minY) * 0.08);
+  minY -= yPadding;
+  maxY += yPadding;
 
   const pad = { left: 56, right: 30, top: 18, bottom: 44 };
   const width = canvas.width - pad.left - pad.right;
@@ -746,9 +749,9 @@ function drawPeakTimeline(canvas, players, activeIndex) {
     const selected = index === activeIndex;
     state.peakLinePaths.push({ index, points: linePoints, top: pad.top, bottom: pad.top + height });
 
-    ctx.globalAlpha = selected ? 1 : 0.08;
-    ctx.strokeStyle = player.color;
-    ctx.lineWidth = selected ? 2.8 : 0.9;
+    ctx.globalAlpha = selected ? 1 : 0.11;
+    ctx.strokeStyle = selected ? player.color : "rgba(23, 33, 29, 0.42)";
+    ctx.lineWidth = selected ? 2.7 : 1;
     ctx.beginPath();
     linePoints.forEach((point, pointIndex) => {
       if (pointIndex === 0) {
@@ -757,6 +760,24 @@ function drawPeakTimeline(canvas, players, activeIndex) {
         ctx.lineTo(point.x, point.y);
       }
     });
+    if (selected) {
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.strokeStyle = "#fbfaf6";
+      ctx.lineWidth = 6;
+      ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      linePoints.forEach((point, pointIndex) => {
+        if (pointIndex === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.strokeStyle = player.color;
+      ctx.lineWidth = 2.7;
+    }
     ctx.stroke();
   });
   ctx.restore();

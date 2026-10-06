@@ -42,6 +42,9 @@ def _handler_factory(db_path: Path):
             if parsed.path == "/app.js":
                 self._serve_static("app.js", "application/javascript; charset=utf-8")
                 return
+            if parsed.path == "/peak-timelines.js":
+                self._serve_static("peak-timelines.js", "application/javascript; charset=utf-8")
+                return
             if parsed.path == "/styles.css":
                 self._serve_static("styles.css", "text/css; charset=utf-8")
                 return

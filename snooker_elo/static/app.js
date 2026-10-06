@@ -8,6 +8,7 @@ const state = {
   dynastyCollection: null,
   peaks: [],
   activePeakIndex: 0,
+  peakLinePaths: [],
 };
 
 const dateInput = document.querySelector("#date");
@@ -25,7 +26,7 @@ const playersEl = document.querySelector("#players");
 const detailEl = document.querySelector("#player-detail");
 const compareListEl = document.querySelector("#compare-list");
 const peaksEl = document.querySelector("#peaks");
-const peakPlotEl = document.querySelector("#peak-plot");
+const peakTimelineChart = document.querySelector("#peak-timeline-chart");
 const peakDetailEl = document.querySelector("#peak-detail");
 const historyChart = document.querySelector("#history-chart");
 const compareChart = document.querySelector("#compare-chart");
@@ -61,32 +62,7 @@ const baselineSeries = {
   gap_to_top5_field: "top5_field_average",
   gap_to_top10_field: "top10_field_average",
 };
-const peakArchive = {
-  match: [
-    { player_name: "Ronnie O'Sullivan", date: "2019-01-19", rating: 2269.1168462097594 },
-    { player_name: "Judd Trump", date: "2021-02-08", rating: 2260.4491977864755 },
-    { player_name: "Stephen Hendry", date: "1995-11-25", rating: 2202.568486769874 },
-    { player_name: "Mark Williams", date: "2003-11-13", rating: 2187.2215981012873 },
-    { player_name: "Neil Robertson", date: "2020-02-13", rating: 2183.856558750777 },
-    { player_name: "John Higgins", date: "2011-01-05", rating: 2175.9791312145767 },
-    { player_name: "Mark Selby", date: "2017-01-18", rating: 2173.2585748979836 },
-    { player_name: "Ding Junhui", date: "2014-02-19", rating: 2169.8220739298126 },
-    { player_name: "Shaun Murphy", date: "2015-02-07", rating: 2151.700830172519 },
-    { player_name: "Zhao Xintong", date: "2026-04-24", rating: 2134.3118520742178 },
-  ],
-  frame: [
-    { player_name: "Ronnie O'Sullivan", date: "2016-03-02", rating: 1848.6463720315612 },
-    { player_name: "Judd Trump", date: "2021-03-16", rating: 1842.3521355257942 },
-    { player_name: "Mark Selby", date: "2016-12-09", rating: 1826.253392289065 },
-    { player_name: "Neil Robertson", date: "2019-04-26", rating: 1820.472659224754 },
-    { player_name: "John Higgins", date: "2021-04-02", rating: 1813.1446500455454 },
-    { player_name: "Stephen Hendry", date: "1995-11-25", rating: 1813.0121831721267 },
-    { player_name: "Zhao Xintong", date: "2026-08-28", rating: 1810.948268833792 },
-    { player_name: "Mark Williams", date: "2003-05-01", rating: 1808.6474773916368 },
-    { player_name: "Stephen Maguire", date: "2004-11-28", rating: 1802.5098251020727 },
-    { player_name: "Shaun Murphy", date: "2008-03-11", rating: 1801.7335657242836 },
-  ],
-};
+const peakTimelines = window.peakTimelines || [];
 const dynastyImages = {
   "Steve Davis": {
     src: "/assets/steve-davis.jpg",
@@ -140,6 +116,12 @@ window.addEventListener("resize", () => {
     loadPlayer(state.selectedPlayer.player_id, state.selectedPlayer.player_name);
   }
 });
+
+peakTimelineChart?.addEventListener("pointermove", handlePeakTimelinePointer);
+peakTimelineChart?.addEventListener("pointerleave", () => {
+  peakTimelineChart.style.cursor = "default";
+});
+peakTimelineChart?.addEventListener("click", handlePeakTimelinePointer);
 
 async function refresh() {
   await loadMetadata();
@@ -448,25 +430,24 @@ function preloadDynastyImages() {
 }
 
 function loadPeaks() {
-  state.peaks = peakArchive[ratingInput.value] || peakArchive.match;
+  state.peaks = peakTimelines;
   state.activePeakIndex = Math.min(state.activePeakIndex, Math.max(0, state.peaks.length - 1));
   renderPeaks();
 }
 
 function renderPeaks() {
-  if (!peaksEl || !peakPlotEl || !peakDetailEl) {
+  if (!peaksEl || !peakTimelineChart || !peakDetailEl) {
     return;
   }
-  state.peaks = peakArchive[ratingInput.value] || peakArchive.match;
+  state.peaks = peakTimelines;
   if (!state.peaks.length) {
     peaksEl.innerHTML = `<div class="empty">No peak data</div>`;
-    peakPlotEl.innerHTML = "";
     peakDetailEl.innerHTML = "";
+    drawEmptyChart(peakTimelineChart, "No peak timeline data");
     return;
   }
   state.activePeakIndex = Math.min(state.activePeakIndex, state.peaks.length - 1);
 
-  peakPlotEl.innerHTML = peakPlotMarkup(state.peaks);
   peaksEl.innerHTML = state.peaks.map(peakChip).join("");
   document.querySelectorAll("[data-peak-index]").forEach((card) => {
     const index = Number(card.dataset.index);
@@ -475,51 +456,16 @@ function renderPeaks() {
     card.addEventListener("click", () => selectPeak(index));
   });
   renderPeakDetail();
+  drawPeakTimeline(peakTimelineChart, state.peaks, state.activePeakIndex);
 }
 
-function peakPlotMarkup(peaks) {
-  const metrics = peakMetrics(peaks);
-  const years = peakYearTicks(metrics.minYear, metrics.maxYear);
-  return `
-    <div class="peak-axis" aria-hidden="true">
-      ${years
-        .map(
-          (year) => `
-            <span style="--x:${peakXPercent(`${year}-01-01`, metrics)}%">
-              ${year}
-            </span>
-          `,
-        )
-        .join("")}
-    </div>
-    ${peaks.map((row, index) => peakPoint(row, index, metrics)).join("")}
-  `;
-}
-
-function peakPoint(row, index, metrics) {
-  const x = peakXPercent(row.date, metrics);
-  const y = peakYPercent(row.rating, metrics);
-  const active = index === state.activePeakIndex;
-  return `
-    <button
-      type="button"
-      class="peak-point${active ? " active" : ""}"
-      data-peak-index
-      data-index="${index}"
-      style="--x:${x}%; --y:${y}%"
-      aria-label="${escapeHtml(row.player_name)}, ${formatRating(Number(row.rating))} Elo in ${yearOf(row.date)}"
-    >
-      <span>${index + 1}</span>
-    </button>
-  `;
-}
-
-function peakChip(row, index) {
+function peakChip(player, index) {
+  const peak = selectedTimelinePeak(player);
   return `
     <button type="button" class="peak-card${index === state.activePeakIndex ? " active" : ""}" data-peak-index data-index="${index}">
       <span class="peak-rank">#${index + 1}</span>
-      <b>${escapeHtml(row.player_name)}</b>
-      <strong>${formatRating(Number(row.rating))}</strong>
+      <b>${escapeHtml(player.name)}</b>
+      <strong style="color:${player.color}">${formatRating(peak?.rating)}</strong>
     </button>
   `;
 }
@@ -533,49 +479,63 @@ function selectPeak(index) {
 }
 
 function renderPeakDetail() {
-  const row = state.peaks[state.activePeakIndex];
-  if (!row) {
+  const player = state.peaks[state.activePeakIndex];
+  const peak = selectedTimelinePeak(player);
+  if (!player || !peak) {
     peakDetailEl.innerHTML = "";
     return;
   }
   peakDetailEl.innerHTML = `
-    <span>Peak ${state.activePeakIndex + 1}</span>
-    <strong>${formatRating(Number(row.rating))}</strong>
-    <h3>${escapeHtml(row.player_name)}</h3>
-    <p>${ratingInput.value === "frame" ? "Frame Elo" : "Match Elo"} peak on ${formatDisplayDate(row.date)}</p>
+    <span>${ratingInput.value === "frame" ? "Frame Elo" : "Match Elo"} peak</span>
+    <strong style="color:${player.color}">${formatRating(peak.rating)}</strong>
+    <h3>${escapeHtml(player.name)}</h3>
+    <p>${ratingInput.value === "frame" ? "Frame Elo" : "Match Elo"} peak on ${formatDisplayDate(peak.date)}</p>
   `;
 }
 
-function peakMetrics(peaks) {
-  const years = peaks.map((row) => yearOf(row.date));
-  const ratings = peaks.map((row) => Number(row.rating));
-  const minYear = Math.min(...years);
-  const maxYear = Math.max(...years);
-  const minRating = Math.min(...ratings);
-  const maxRating = Math.max(...ratings);
-  return { minYear, maxYear, minRating, maxRating };
-}
-
-function peakXPercent(date, metrics) {
-  const span = Math.max(1, metrics.maxYear - metrics.minYear);
-  return 6 + ((yearOf(date) - metrics.minYear) / span) * 88;
-}
-
-function peakYPercent(rating, metrics) {
-  const span = Math.max(1, metrics.maxRating - metrics.minRating);
-  return 82 - ((Number(rating) - metrics.minRating) / span) * 62;
-}
-
-function peakYearTicks(minYear, maxYear) {
-  const start = Math.floor(minYear / 10) * 10;
-  const end = Math.ceil(maxYear / 10) * 10;
-  const years = [];
-  for (let year = start; year <= end; year += 10) {
-    if (year >= minYear && year <= maxYear) {
-      years.push(year);
-    }
+function selectedTimelinePeak(player) {
+  if (!player) {
+    return null;
   }
-  return years.includes(minYear) ? years : [minYear, ...years, maxYear].filter((year, index, all) => all.indexOf(year) === index);
+  return ratingInput.value === "frame" ? player.framePeak : player.matchPeak;
+}
+
+function peakPointValue(point) {
+  return ratingInput.value === "frame" ? point[2] : point[1];
+}
+
+function handlePeakTimelinePointer(event) {
+  const rect = peakTimelineChart.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const hit = closestPeakLine(x, y);
+  peakTimelineChart.style.cursor = hit ? "pointer" : "default";
+  if (hit) {
+    selectPeak(hit.index);
+  }
+}
+
+function closestPeakLine(x, y) {
+  let closest = null;
+  state.peakLinePaths.forEach((path) => {
+    for (let index = 1; index < path.points.length; index += 1) {
+      const distance = segmentDistance(x, y, path.points[index - 1], path.points[index]);
+      if (!closest || distance < closest.distance) {
+        closest = { index: path.index, distance };
+      }
+    }
+  });
+  return closest && closest.distance < 18 ? closest : null;
+}
+
+function segmentDistance(x, y, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (!dx && !dy) {
+    return Math.hypot(x - a.x, y - a.y);
+  }
+  const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
 }
 
 function renderDynastySelectors(dynasties) {
@@ -733,10 +693,6 @@ function trimDate(value) {
   return value ? String(value).slice(0, 10) : "";
 }
 
-function yearOf(value) {
-  return Number(trimDate(value).slice(0, 4));
-}
-
 function formatDisplayDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -760,6 +716,89 @@ function drawEmptyChart(canvas, label) {
   ctx.font = "14px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(label, canvas.width / 2, canvas.height / 2);
+}
+
+function drawPeakTimeline(canvas, players, activeIndex) {
+  const activePlayers = players.filter((player) => player.points?.length);
+  const ctx = prepareCanvas(canvas);
+  state.peakLinePaths = [];
+  if (!activePlayers.length) {
+    drawEmptyChart(canvas, "No peak timeline data");
+    return;
+  }
+
+  const allPoints = activePlayers.flatMap((player) =>
+    player.points.map((point) => ({ x: point[0], y: peakPointValue(point) })),
+  );
+  const minX = Math.floor(Math.min(...allPoints.map((point) => point.x)));
+  const maxX = Math.ceil(Math.max(...allPoints.map((point) => point.x)));
+  let minY = Math.min(...allPoints.map((point) => point.y));
+  let maxY = Math.max(...allPoints.map((point) => point.y));
+  const yPadding = Math.max(18, (maxY - minY) * 0.08);
+  minY -= yPadding;
+  maxY += yPadding;
+
+  const pad = { left: 56, right: 30, top: 24, bottom: 48 };
+  const width = canvas.width - pad.left - pad.right;
+  const height = canvas.height - pad.top - pad.bottom;
+  const xSpan = Math.max(1, maxX - minX);
+  const ySpan = Math.max(1, maxY - minY);
+  drawChartGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX, {
+    xFormatter: (value) => String(Math.round(value)),
+  });
+
+  const drawOrder = activePlayers
+    .map((player, index) => ({ player, index }))
+    .sort((a, b) => (a.index === activeIndex ? 1 : b.index === activeIndex ? -1 : 0));
+  drawOrder.forEach(({ player, index }) => {
+    const linePoints = player.points
+      .map((point) => ({
+        x: pad.left + ((point[0] - minX) / xSpan) * width,
+        y: pad.top + height - ((peakPointValue(point) - minY) / ySpan) * height,
+      }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+    const selected = index === activeIndex;
+    state.peakLinePaths.push({ index, points: linePoints });
+
+    ctx.globalAlpha = selected ? 1 : 0.18;
+    ctx.strokeStyle = player.color;
+    ctx.lineWidth = selected ? 3 : 1.6;
+    ctx.beginPath();
+    linePoints.forEach((point, pointIndex) => {
+      if (pointIndex === 0) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+    });
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+
+  const activePlayer = activePlayers[activeIndex] || activePlayers[0];
+  const peak = selectedTimelinePeak(activePlayer);
+  if (!peak) {
+    return;
+  }
+  const peakX = pad.left + ((peak.x - minX) / xSpan) * width;
+  const peakY = pad.top + height - ((peak.rating - minY) / ySpan) * height;
+  ctx.fillStyle = activePlayer.color;
+  ctx.strokeStyle = "#fbfaf6";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(peakX, peakY, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  const labelX = Math.min(Math.max(peakX + 12, pad.left), canvas.width - 220);
+  const labelY = Math.max(peakY - 24, pad.top + 18);
+  ctx.fillStyle = activePlayer.color;
+  ctx.font = "700 12px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`${activePlayer.name} / ${formatRating(peak.rating)}`, labelX, labelY);
+  ctx.fillStyle = "rgba(23, 33, 29, 0.58)";
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillText(formatDisplayDate(peak.date), labelX, labelY + 18);
 }
 
 function drawSeriesChart(canvas, series) {

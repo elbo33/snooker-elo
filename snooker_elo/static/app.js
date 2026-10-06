@@ -6,6 +6,9 @@ const state = {
   dynastyPlayer: "Stephen Hendry",
   dynastyBaseline: "gap_to_top10_field",
   dynastyCollection: null,
+  peaks: [],
+  activePeakIndex: 0,
+  peakHitAreas: [],
 };
 
 const dateInput = document.querySelector("#date");
@@ -23,6 +26,8 @@ const playersEl = document.querySelector("#players");
 const detailEl = document.querySelector("#player-detail");
 const compareListEl = document.querySelector("#compare-list");
 const peaksEl = document.querySelector("#peaks");
+const peakChart = document.querySelector("#peak-chart");
+const peakDetailEl = document.querySelector("#peak-detail");
 const historyChart = document.querySelector("#history-chart");
 const compareChart = document.querySelector("#compare-chart");
 const dynastyLoadingEl = document.querySelector("#dynasty-loading");
@@ -105,10 +110,17 @@ dynastyBaselineEl?.querySelectorAll("button").forEach((button) => {
 window.addEventListener("resize", () => {
   renderCompare();
   renderDynasty();
+  renderPeaks();
   if (state.selectedPlayer) {
     loadPlayer(state.selectedPlayer.player_id, state.selectedPlayer.player_name);
   }
 });
+
+peakChart?.addEventListener("pointermove", handlePeakChartPointer);
+peakChart?.addEventListener("pointerleave", () => {
+  peakChart.style.cursor = "default";
+});
+peakChart?.addEventListener("click", handlePeakChartPointer);
 
 async function refresh() {
   await loadMetadata();
@@ -417,41 +429,81 @@ function preloadDynastyImages() {
 }
 
 async function loadPeaks() {
-  const data = await api(`/api/peaks?rating=${ratingInput.value}&limit=6`);
+  const data = await api(`/api/peaks?rating=${ratingInput.value}&limit=12`);
   if (data.error) {
     peaksEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
+    peakDetailEl.innerHTML = "";
+    drawEmptyChart(peakChart, "No peak data");
     return;
   }
-  const maxRating = Math.max(...data.map((row) => Number(row.rating)).filter(Number.isFinite));
-  peaksEl.innerHTML =
-    data
-      .map(
-        (row, index) => `
-          <article class="peak-card${index === 0 ? " active" : ""}" tabindex="0" style="--peak:${Number.isFinite(maxRating) ? Math.max(6, (Number(row.rating) / maxRating) * 100) : 0}%">
-            <div>
-              <div class="peak-rank">Peak ${index + 1}</div>
-              <strong>${formatRating(row.rating)}</strong>
-              <span>${ratingInput.value === "frame" ? "Frame Elo" : "Match Elo"}</span>
-            </div>
-            <div>
-              <b>${escapeHtml(row.player_name)}</b>
-              <span>${trimDate(row.date)}</span>
-            </div>
-          </article>
-        `,
-      )
-      .join("") || `<div class="empty">No peak data</div>`;
-  peaksEl.querySelectorAll(".peak-card").forEach((card) => {
-    card.addEventListener("pointerenter", () => activatePeak(card));
-    card.addEventListener("focus", () => activatePeak(card));
-    card.addEventListener("click", () => activatePeak(card));
-  });
+  state.peaks = Array.isArray(data) ? data : [];
+  state.activePeakIndex = Math.min(state.activePeakIndex, Math.max(0, state.peaks.length - 1));
+  renderPeaks();
 }
 
-function activatePeak(card) {
-  peaksEl.querySelectorAll(".peak-card").forEach((item) => {
-    item.classList.toggle("active", item === card);
+function renderPeaks() {
+  if (!peaksEl || !peakChart || !peakDetailEl) {
+    return;
+  }
+  if (!state.peaks.length) {
+    peaksEl.innerHTML = `<div class="empty">No peak data</div>`;
+    peakDetailEl.innerHTML = "";
+    drawEmptyChart(peakChart, "No peak data");
+    return;
+  }
+
+  peaksEl.innerHTML = state.peaks.map(peakChip).join("");
+  peaksEl.querySelectorAll(".peak-card").forEach((card) => {
+    const index = Number(card.dataset.index);
+    card.addEventListener("pointerenter", () => selectPeak(index));
+    card.addEventListener("focus", () => selectPeak(index));
+    card.addEventListener("click", () => selectPeak(index));
   });
+  renderPeakDetail();
+  drawPeakChart(peakChart, state.peaks, state.activePeakIndex);
+}
+
+function peakChip(row, index) {
+  return `
+    <button type="button" class="peak-card${index === state.activePeakIndex ? " active" : ""}" data-index="${index}">
+      <span class="peak-rank">#${index + 1}</span>
+      <b>${escapeHtml(row.player_name)}</b>
+      <strong>${formatRating(Number(row.rating))}</strong>
+    </button>
+  `;
+}
+
+function selectPeak(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= state.peaks.length || index === state.activePeakIndex) {
+    return;
+  }
+  state.activePeakIndex = index;
+  renderPeaks();
+}
+
+function renderPeakDetail() {
+  const row = state.peaks[state.activePeakIndex];
+  if (!row) {
+    peakDetailEl.innerHTML = "";
+    return;
+  }
+  peakDetailEl.innerHTML = `
+    <span>Peak ${state.activePeakIndex + 1}</span>
+    <strong>${formatRating(Number(row.rating))}</strong>
+    <h3>${escapeHtml(row.player_name)}</h3>
+    <p>${ratingInput.value === "frame" ? "Frame Elo" : "Match Elo"} peak on ${trimDate(row.date)}</p>
+  `;
+}
+
+function handlePeakChartPointer(event) {
+  const rect = peakChart.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const hit = state.peakHitAreas.find((area) => Math.hypot(area.x - x, area.y - y) <= area.radius);
+  peakChart.style.cursor = hit ? "pointer" : "default";
+  if (hit) {
+    selectPeak(hit.index);
+  }
 }
 
 function renderDynastySelectors(dynasties) {
@@ -624,6 +676,125 @@ function drawEmptyChart(canvas, label) {
   ctx.font = "14px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(label, canvas.width / 2, canvas.height / 2);
+}
+
+function drawPeakChart(canvas, peaks, activeIndex) {
+  const points = peaks
+    .map((row, index) => ({
+      index,
+      player: row.player_name,
+      date: trimDate(row.date),
+      x: Date.parse(row.date),
+      y: Number(row.rating),
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  const ctx = prepareCanvas(canvas);
+  state.peakHitAreas = [];
+  if (!points.length) {
+    drawEmptyChart(canvas, "No peak data");
+    return;
+  }
+
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  let minY = Math.min(...points.map((point) => point.y));
+  let maxY = Math.max(...points.map((point) => point.y));
+  const yPadding = Math.max(10, (maxY - minY) * 0.22);
+  minY -= yPadding;
+  maxY += yPadding * 0.7;
+
+  const pad = { left: 58, right: 28, top: 28, bottom: 48 };
+  const width = canvas.width - pad.left - pad.right;
+  const height = canvas.height - pad.top - pad.bottom;
+  const xSpan = Math.max(1, maxX - minX);
+  const ySpan = Math.max(1, maxY - minY);
+  const sorted = [...points].sort((a, b) => a.x - b.x);
+  const coords = new Map();
+
+  drawChartGrid(ctx, canvas, pad, width, height, minY, maxY, minX, maxX);
+
+  sorted.forEach((point) => {
+    const x = pad.left + ((point.x - minX) / xSpan) * width;
+    const y = pad.top + height - ((point.y - minY) / ySpan) * height;
+    coords.set(point.index, { x, y });
+  });
+
+  ctx.beginPath();
+  sorted.forEach((point, index) => {
+    const { x, y } = coords.get(point.index);
+    if (index === 0) {
+      ctx.moveTo(x, pad.top + height);
+      ctx.lineTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  const last = coords.get(sorted[sorted.length - 1].index);
+  ctx.lineTo(last.x, pad.top + height);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(13, 91, 69, 0.08)";
+  ctx.fill();
+
+  ctx.beginPath();
+  sorted.forEach((point, index) => {
+    const { x, y } = coords.get(point.index);
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.strokeStyle = "rgba(13, 91, 69, 0.55)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  points.forEach((point) => {
+    const { x, y } = coords.get(point.index);
+    const active = point.index === activeIndex;
+    ctx.strokeStyle = active ? "rgba(148, 107, 52, 0.9)" : "rgba(23, 33, 29, 0.18)";
+    ctx.lineWidth = active ? 1.6 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 8);
+    ctx.lineTo(x, pad.top + height);
+    ctx.stroke();
+
+    if (active) {
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(148, 107, 52, 0.13)";
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, active ? 7 : 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = active ? "#946b34" : "#0d5b45";
+    ctx.fill();
+    ctx.strokeStyle = "#fbfaf6";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    state.peakHitAreas.push({ index: point.index, x, y, radius: active ? 24 : 18 });
+  });
+
+  const activePoint = points.find((point) => point.index === activeIndex) || points[0];
+  const activeCoord = coords.get(activePoint.index);
+  if (activeCoord) {
+    const labelX = Math.min(Math.max(activeCoord.x + 14, pad.left), canvas.width - 210);
+    const labelY = Math.max(activeCoord.y - 34, pad.top + 16);
+    ctx.fillStyle = "rgba(251, 250, 246, 0.92)";
+    ctx.strokeStyle = "rgba(23, 33, 29, 0.14)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, labelX - 10, labelY - 18, 198, 46, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#17211d";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(activePoint.player.slice(0, 24), labelX, labelY);
+    ctx.fillStyle = "rgba(23, 33, 29, 0.56)";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText(`${formatRating(activePoint.y)} Elo - ${activePoint.date}`, labelX, labelY + 18);
+  }
 }
 
 function drawSeriesChart(canvas, series) {
@@ -903,6 +1074,21 @@ function drawLegend(ctx, series, x, y) {
   });
 }
 
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 function downsample(points, limit) {
   if (points.length <= limit) {
     return points;
@@ -953,5 +1139,6 @@ function numericTicks(minX, maxX, width) {
 
 drawEmptyChart(compareChart, "Loading");
 drawEmptyChart(historyChart, "Select a player");
+drawEmptyChart(peakChart, "Loading peaks");
 drawEmptyChart(dynastyMainChart, "Loading");
 refresh();

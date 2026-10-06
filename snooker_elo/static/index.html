@@ -65,10 +65,14 @@
         <p class="chapter-question">At their absolute best, how high could greatness go?</p>
         <div class="peak-stage">
           <p>
-            Hover or tap a peak to bring it forward. The point is simple: one number, one date, one moment where
+            Hover or tap the skyline to bring a peak forward. Each point is one number, one date, one moment where
             a player reached the top of the archive.
           </p>
-          <div id="peaks" class="peak-grid"></div>
+          <div class="peak-visual">
+            <canvas id="peak-chart" width="1200" height="380"></canvas>
+            <aside id="peak-detail" class="peak-detail" aria-live="polite"></aside>
+          </div>
+          <div id="peaks" class="peak-strip" aria-label="Peak Elo ranking"></div>
         </div>
       </section>
 

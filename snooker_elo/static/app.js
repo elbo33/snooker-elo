@@ -25,7 +25,6 @@ const eraRange = document.querySelector("#era-range");
 const playersEl = document.querySelector("#players");
 const detailEl = document.querySelector("#player-detail");
 const compareListEl = document.querySelector("#compare-list");
-const peaksEl = document.querySelector("#peaks");
 const peakTimelineChart = document.querySelector("#peak-timeline-chart");
 const peakDetailEl = document.querySelector("#peak-detail");
 const historyChart = document.querySelector("#history-chart");
@@ -436,38 +435,19 @@ function loadPeaks() {
 }
 
 function renderPeaks() {
-  if (!peaksEl || !peakTimelineChart || !peakDetailEl) {
+  if (!peakTimelineChart || !peakDetailEl) {
     return;
   }
   state.peaks = peakTimelines;
   if (!state.peaks.length) {
-    peaksEl.innerHTML = `<div class="empty">No peak data</div>`;
     peakDetailEl.innerHTML = "";
     drawEmptyChart(peakTimelineChart, "No peak timeline data");
     return;
   }
   state.activePeakIndex = Math.min(state.activePeakIndex, state.peaks.length - 1);
 
-  peaksEl.innerHTML = state.peaks.map(peakChip).join("");
-  document.querySelectorAll("[data-peak-index]").forEach((card) => {
-    const index = Number(card.dataset.index);
-    card.addEventListener("pointerenter", () => selectPeak(index));
-    card.addEventListener("focus", () => selectPeak(index));
-    card.addEventListener("click", () => selectPeak(index));
-  });
   renderPeakDetail();
   drawPeakTimeline(peakTimelineChart, state.peaks, state.activePeakIndex);
-}
-
-function peakChip(player, index) {
-  const peak = selectedTimelinePeak(player);
-  return `
-    <button type="button" class="peak-card${index === state.activePeakIndex ? " active" : ""}" data-peak-index data-index="${index}">
-      <span class="peak-rank">#${index + 1}</span>
-      <b>${escapeHtml(player.name)}</b>
-      <strong style="color:${player.color}">${formatRating(peak?.rating)}</strong>
-    </button>
-  `;
 }
 
 function selectPeak(index) {
@@ -519,7 +499,12 @@ function closestPeakLine(x, y) {
   let closest = null;
   state.peakLinePaths.forEach((path) => {
     for (let index = 1; index < path.points.length; index += 1) {
-      const distance = segmentDistance(x, y, path.points[index - 1], path.points[index]);
+      const previous = path.points[index - 1];
+      const current = path.points[index];
+      if ((previous.y < path.top && current.y < path.top) || (previous.y > path.bottom && current.y > path.bottom)) {
+        continue;
+      }
+      const distance = segmentDistance(x, y, previous, current);
       if (!closest || distance < closest.distance) {
         closest = { index: path.index, distance };
       }
@@ -732,13 +717,10 @@ function drawPeakTimeline(canvas, players, activeIndex) {
   );
   const minX = Math.floor(Math.min(...allPoints.map((point) => point.x)));
   const maxX = Math.ceil(Math.max(...allPoints.map((point) => point.x)));
-  let minY = Math.min(...allPoints.map((point) => point.y));
-  let maxY = Math.max(...allPoints.map((point) => point.y));
-  const yPadding = Math.max(18, (maxY - minY) * 0.08);
-  minY -= yPadding;
-  maxY += yPadding;
+  const maxY = Math.ceil(Math.max(...allPoints.map((point) => point.y)) + 16);
+  const minY = ratingInput.value === "frame" ? 1660 : 1900;
 
-  const pad = { left: 56, right: 30, top: 24, bottom: 48 };
+  const pad = { left: 56, right: 30, top: 18, bottom: 44 };
   const width = canvas.width - pad.left - pad.right;
   const height = canvas.height - pad.top - pad.bottom;
   const xSpan = Math.max(1, maxX - minX);
@@ -750,6 +732,10 @@ function drawPeakTimeline(canvas, players, activeIndex) {
   const drawOrder = activePlayers
     .map((player, index) => ({ player, index }))
     .sort((a, b) => (a.index === activeIndex ? 1 : b.index === activeIndex ? -1 : 0));
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pad.left, pad.top, width, height);
+  ctx.clip();
   drawOrder.forEach(({ player, index }) => {
     const linePoints = player.points
       .map((point) => ({
@@ -758,11 +744,11 @@ function drawPeakTimeline(canvas, players, activeIndex) {
       }))
       .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
     const selected = index === activeIndex;
-    state.peakLinePaths.push({ index, points: linePoints });
+    state.peakLinePaths.push({ index, points: linePoints, top: pad.top, bottom: pad.top + height });
 
-    ctx.globalAlpha = selected ? 1 : 0.18;
+    ctx.globalAlpha = selected ? 1 : 0.08;
     ctx.strokeStyle = player.color;
-    ctx.lineWidth = selected ? 3 : 1.6;
+    ctx.lineWidth = selected ? 2.8 : 0.9;
     ctx.beginPath();
     linePoints.forEach((point, pointIndex) => {
       if (pointIndex === 0) {
@@ -773,6 +759,7 @@ function drawPeakTimeline(canvas, players, activeIndex) {
     });
     ctx.stroke();
   });
+  ctx.restore();
   ctx.globalAlpha = 1;
 
   const activePlayer = activePlayers[activeIndex] || activePlayers[0];

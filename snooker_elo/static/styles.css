@@ -328,8 +328,7 @@ main {
   animation: peak-detail-in 220ms ease both;
 }
 
-.peak-detail span,
-.peak-rank {
+.peak-detail span {
   color: var(--gold);
   font-size: 11px;
   font-weight: 820;
@@ -359,59 +358,6 @@ main {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.45;
-}
-
-.peak-strip {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.peak-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  justify-items: start;
-  gap: 4px 8px;
-  min-height: 72px;
-  padding: 9px 0;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  color: var(--ivory);
-  background: transparent;
-  text-align: left;
-  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
-}
-
-.peak-card.active,
-.peak-card:hover,
-.peak-card:focus-visible {
-  color: var(--gold);
-  border-color: var(--gold);
-  outline: 0;
-}
-
-.peak-card.active {
-  transform: translateY(-2px);
-}
-
-.peak-card strong {
-  grid-column: 2;
-  display: block;
-  font-size: 16px;
-  line-height: 1;
-  font-weight: 760;
-  font-variant-numeric: tabular-nums;
-}
-
-.peak-card b {
-  grid-column: 2;
-  display: block;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.05;
 }
 
 @keyframes peak-detail-in {
@@ -972,8 +918,7 @@ tbody tr:hover {
     min-height: 280px;
   }
 
-  .peak-board,
-  .peak-strip {
+  .peak-board {
     grid-template-columns: 1fr;
   }
 
@@ -987,14 +932,6 @@ tbody tr:hover {
     padding: 18px 0 0;
     border-left: 0;
     border-top: 1px solid var(--line);
-  }
-
-  .peak-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .peak-card {
-    min-height: 78px;
   }
 
   .era-scenes {

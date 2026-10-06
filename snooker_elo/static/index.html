@@ -65,11 +65,11 @@
         <p class="chapter-question">At their absolute best, how high could greatness go?</p>
         <div class="peak-stage">
           <p>
-            Hover or tap the skyline to bring a peak forward. Each point is one number, one date, one moment where
-            a player reached the top of the archive.
+            Tap a summit to inspect the moment. The chapter is intentionally instant: the all-time peaks are fixed
+            into the page, so the story appears before the wider archive finishes loading.
           </p>
-          <div class="peak-visual">
-            <canvas id="peak-chart" width="1200" height="380"></canvas>
+          <div class="peak-board">
+            <div id="peak-plot" class="peak-plot" aria-label="All-time Elo peaks by year"></div>
             <aside id="peak-detail" class="peak-detail" aria-live="polite"></aside>
           </div>
           <div id="peaks" class="peak-strip" aria-label="Peak Elo ranking"></div>

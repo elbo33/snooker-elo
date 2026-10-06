@@ -25,6 +25,11 @@
         <p class="hero-copy">
           More than a century of professional snooker, reconstructed match by match.
         </p>
+        <div class="hero-points">
+          <span>Peak ratings</span>
+          <span>Dynasty gaps</span>
+          <span>Rival timelines</span>
+        </div>
         <a class="story-link" href="#opening-question">Explore the history</a>
       </div>
     </header>
@@ -58,22 +63,13 @@
         <div class="chapter-kicker">Chapter I</div>
         <h2>The Great Peaks</h2>
         <p class="chapter-question">At their absolute best, how high could greatness go?</p>
-        <div class="editorial-split">
-          <div class="photo-slot">
-            <span>Historical photography slot</span>
-            <strong>Insert licensed peak-era player image here</strong>
-          </div>
-          <div class="chapter-copy">
-            <p>
-              For a brief moment, every great player reaches the point where nobody can touch him.
-            </p>
-            <p>
-              Elo turns that feeling into a traceable summit. The names below are calculated from the
-              selected rating system, not chosen by hand.
-            </p>
-          </div>
+        <div class="peak-stage">
+          <p>
+            Hover or tap a peak to bring it forward. The point is simple: one number, one date, one moment where
+            a player reached the top of the archive.
+          </p>
+          <div id="peaks" class="peak-grid"></div>
         </div>
-        <div id="peaks" class="peak-grid"></div>
       </section>
 
       <section class="chapter chapter-dynasties" id="dynasties">
@@ -83,97 +79,43 @@
 
         <div id="dynasty-loading" class="dynasty-loading">Loading the dynasty archive</div>
 
-        <div class="dynasty-mode-row" aria-label="Dynasty chapter mode">
-          <button type="button" data-mode="explore" class="active">Explore</button>
-          <button type="button" data-mode="compare">Compare</button>
-        </div>
-
-        <div class="dynasty-selector-block">
-          <span class="eyebrow dark">Explore an era</span>
-          <div id="dynasty-selector" class="dynasty-selector" aria-label="Choose dynasty"></div>
-        </div>
-
-        <div id="dynasty-sticky" class="dynasty-sticky" aria-label="Sticky dynasty chooser">
-          <span>Dynasty</span>
-          <div id="dynasty-sticky-selector" class="dynasty-sticky-selector"></div>
-        </div>
-
-        <div class="dynasty-hero">
+        <div class="dynasty-panel">
           <div class="photo-slot dynasty-photo">
             <span id="dynasty-image-credit">Wikimedia Commons</span>
             <strong id="dynasty-player">Stephen Hendry</strong>
           </div>
-          <div class="dynasty-intro">
-            <div id="dynasty-period" class="dynasty-period">Loading dynasty period</div>
-            <h3 id="dynasty-title">The Hendry Years</h3>
-            <p id="dynasty-copy">
-              At his peak, the question was not whether he was No.1. It was how far behind everyone else had become.
-            </p>
-            <p id="dynasty-coverage" class="coverage-note">End-of-month Elo snapshots.</p>
+          <div class="dynasty-explorer">
+            <div class="dynasty-selector-block">
+              <span class="eyebrow dark">Choose dynasty</span>
+              <div id="dynasty-selector" class="dynasty-selector" aria-label="Choose dynasty"></div>
+            </div>
+
+            <div class="dynasty-intro">
+              <div id="dynasty-period" class="dynasty-period">Loading dynasty period</div>
+              <h3 id="dynasty-title">The Hendry Years</h3>
+              <p id="dynasty-copy">
+                At his peak, the question was not whether he was No.1. It was how far behind everyone else had become.
+              </p>
+              <p id="dynasty-coverage" class="coverage-note">End-of-month Elo snapshots.</p>
+            </div>
+
+            <div class="dynasty-control-row">
+              <span>Compare against</span>
+              <div id="dynasty-baseline" class="segmented-control" aria-label="Compare leader against">
+                <button type="button" data-baseline="gap_to_second">#2</button>
+                <button type="button" data-baseline="gap_to_top5_field">Top 5</button>
+                <button type="button" data-baseline="gap_to_top10_field" class="active">Top 10</button>
+              </div>
+            </div>
+
+            <div class="dynasty-chart-summary">
+              <strong id="dynasty-gap">+0 Elo</strong>
+              <span id="dynasty-gap-label">Peak gap above the Top 10 field average</span>
+            </div>
+
+            <canvas id="dynasty-main-chart" width="1200" height="420"></canvas>
           </div>
         </div>
-
-        <div class="dynasty-control-row dynasty-explore">
-          <span>Against</span>
-          <div id="dynasty-baseline" class="segmented-control" aria-label="Compare leader against">
-            <button type="button" data-baseline="gap_to_second">#2</button>
-            <button type="button" data-baseline="gap_to_top5_field">Top 5</button>
-            <button type="button" data-baseline="gap_to_top10_field" class="active">Top 10</button>
-          </div>
-        </div>
-
-        <section class="dynasty-visual dynasty-explore">
-          <div class="section-title">
-            <span class="eyebrow dark">Leader vs the field</span>
-            <h3>How far ahead did the No.1 really stand?</h3>
-          </div>
-          <canvas id="dynasty-main-chart" width="1200" height="420"></canvas>
-        </section>
-
-        <section class="dynasty-gap-panel dynasty-explore">
-          <div>
-            <span class="eyebrow dark">Dominance above the field</span>
-            <strong id="dynasty-gap">+0 Elo</strong>
-            <p id="dynasty-gap-label">Peak gap above the Top 10 field average</p>
-          </div>
-          <canvas id="dynasty-gap-chart" width="1200" height="320"></canvas>
-        </section>
-
-        <section class="field-portrait dynasty-explore">
-          <div class="section-title">
-            <span class="eyebrow dark">Peak dominance portrait</span>
-            <h3 id="field-snapshot">The field at the strongest snapshot</h3>
-          </div>
-          <div id="dynasty-field" class="field-list"></div>
-        </section>
-
-        <section id="dynasty-compare-panel" class="dynasty-compare-panel" hidden>
-          <div class="section-title">
-            <span class="eyebrow dark">Compare dynasties</span>
-            <h3>Who separated furthest from their generation?</h3>
-          </div>
-          <p class="compare-copy">
-            Each curve shows Elo above the Top 10 field average, aligned from the start of the player's sustained
-            Elo No.1 period.
-          </p>
-          <canvas id="dynasty-compare-chart" width="1200" height="360"></canvas>
-        </section>
-
-        <section class="dynasty-explore">
-          <div class="section-title">
-            <span class="eyebrow dark">Dynasty records</span>
-            <h3>Every number has a job.</h3>
-          </div>
-          <div id="dominance" class="dominance-list"></div>
-        </section>
-
-        <section class="dynasty-next">
-          <div class="section-title">
-            <span class="eyebrow dark">Next dynasty</span>
-            <h3 id="dynasty-next-title">Ronnie O'Sullivan</h3>
-          </div>
-          <button type="button" id="dynasty-next" class="story-link">Explore next era</button>
-        </section>
       </section>
 
       <section class="chapter chapter-rivals" id="rivals">

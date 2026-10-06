@@ -5,7 +5,6 @@ const state = {
   metadataLoaded: false,
   dynastyPlayer: "Stephen Hendry",
   dynastyBaseline: "gap_to_top10_field",
-  dynastyMode: "explore",
   dynastyCollection: null,
 };
 
@@ -23,14 +22,11 @@ const eraRange = document.querySelector("#era-range");
 const playersEl = document.querySelector("#players");
 const detailEl = document.querySelector("#player-detail");
 const compareListEl = document.querySelector("#compare-list");
-const dominanceEl = document.querySelector("#dominance");
 const peaksEl = document.querySelector("#peaks");
 const historyChart = document.querySelector("#history-chart");
 const compareChart = document.querySelector("#compare-chart");
 const dynastyLoadingEl = document.querySelector("#dynasty-loading");
 const dynastySelectorEl = document.querySelector("#dynasty-selector");
-const dynastyStickySelectorEl = document.querySelector("#dynasty-sticky-selector");
-const dynastyModeEl = document.querySelector(".dynasty-mode-row");
 const dynastyPlayerEl = document.querySelector("#dynasty-player");
 const dynastyPhotoEl = document.querySelector(".dynasty-photo");
 const dynastyImageCreditEl = document.querySelector("#dynasty-image-credit");
@@ -42,13 +38,6 @@ const dynastyGapEl = document.querySelector("#dynasty-gap");
 const dynastyGapLabelEl = document.querySelector("#dynasty-gap-label");
 const dynastyBaselineEl = document.querySelector("#dynasty-baseline");
 const dynastyMainChart = document.querySelector("#dynasty-main-chart");
-const dynastyGapChart = document.querySelector("#dynasty-gap-chart");
-const dynastyFieldEl = document.querySelector("#dynasty-field");
-const dynastySnapshotEl = document.querySelector("#field-snapshot");
-const dynastyCompareChart = document.querySelector("#dynasty-compare-chart");
-const dynastyComparePanel = document.querySelector("#dynasty-compare-panel");
-const dynastyNextEl = document.querySelector("#dynasty-next");
-const dynastyNextTitleEl = document.querySelector("#dynasty-next-title");
 const palette = ["#0d5b45", "#315f96", "#946b34", "#765096", "#9f3b34", "#5d6660", "#287c74", "#8a5a44"];
 const defaultLegends = [
   "Ronnie O'Sullivan",
@@ -111,21 +100,6 @@ dynastyBaselineEl?.querySelectorAll("button").forEach((button) => {
     state.dynastyBaseline = button.dataset.baseline;
     renderDynasty();
   });
-});
-
-dynastyModeEl?.querySelectorAll("button").forEach((button) => {
-  button.addEventListener("click", () => {
-    state.dynastyMode = button.dataset.mode;
-    renderDynasty();
-  });
-});
-
-dynastyNextEl?.addEventListener("click", () => {
-  const next = nextDynastyName();
-  if (next) {
-    selectDynasty(next);
-    document.querySelector("#dynasties")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 });
 
 window.addEventListener("resize", () => {
@@ -375,9 +349,6 @@ async function loadDynasties() {
   const data = await api(`/api/dynasties?rating=${ratingInput.value}`);
   if (data.error) {
     drawEmptyChart(dynastyMainChart, "No dynasty data");
-    drawEmptyChart(dynastyGapChart, "No dynasty data");
-    drawEmptyChart(dynastyCompareChart, "No dynasty data");
-    dominanceEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
     return;
   }
   state.dynastyCollection = data;
@@ -400,8 +371,6 @@ function renderDynasty() {
   const selected = findDynasty(state.dynastyPlayer);
   if (!data?.dynasties?.length || !selected) {
     drawEmptyChart(dynastyMainChart, "Loading");
-    drawEmptyChart(dynastyGapChart, "Loading");
-    drawEmptyChart(dynastyCompareChart, "Loading");
     return;
   }
 
@@ -414,13 +383,6 @@ function renderDynasty() {
   dynastyBaselineEl?.querySelectorAll("button").forEach((button) => {
     button.classList.toggle("active", button.dataset.baseline === baseline);
   });
-  dynastyModeEl?.querySelectorAll("button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.mode === state.dynastyMode);
-  });
-  document.querySelectorAll(".dynasty-explore").forEach((element) => {
-    element.hidden = state.dynastyMode !== "explore";
-  });
-  dynastyComparePanel.hidden = state.dynastyMode !== "compare";
   renderDynastyImage(selected.player_name);
   dynastyPlayerEl.textContent = selected.player_name;
   dynastyPeriodEl.textContent = formatDominancePeriod(selected.period);
@@ -431,20 +393,9 @@ function renderDynasty() {
   dynastyCoverageEl.textContent = coverageSentence(peak);
   dynastyGapEl.textContent = peakGap == null ? "Limited data" : `${signed(peakGap)} Elo`;
   dynastyGapLabelEl.textContent = `Peak gap above the ${baselineLabel}`;
-  dynastySnapshotEl.textContent = peak
-    ? `${formatMonthYear(peak.date)}: the actual field chasing ${selected.player_name}`
-    : "The field at the strongest snapshot";
 
   renderDynastySelectors(data.dynasties || []);
-  if (state.dynastyMode === "explore") {
-    drawDynastyFieldChart(dynastyMainChart, points);
-    drawDynastyGapChart(dynastyGapChart, points, baseline);
-  } else {
-    drawDynastyComparison(dynastyCompareChart, data.comparison || []);
-  }
-  renderFieldSnapshot(peak);
-  renderDynastyRecords(selected);
-  renderNextDynasty();
+  drawDynastyFieldChart(dynastyMainChart, points);
 }
 
 function renderDynastyImage(playerName) {
@@ -471,11 +422,12 @@ async function loadPeaks() {
     peaksEl.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
     return;
   }
+  const maxRating = Math.max(...data.map((row) => Number(row.rating)).filter(Number.isFinite));
   peaksEl.innerHTML =
     data
       .map(
         (row, index) => `
-          <article class="peak-card">
+          <article class="peak-card${index === 0 ? " active" : ""}" tabindex="0" style="--peak:${Number.isFinite(maxRating) ? Math.max(6, (Number(row.rating) / maxRating) * 100) : 0}%">
             <div>
               <div class="peak-rank">Peak ${index + 1}</div>
               <strong>${formatRating(row.rating)}</strong>
@@ -489,74 +441,22 @@ async function loadPeaks() {
         `,
       )
       .join("") || `<div class="empty">No peak data</div>`;
+  peaksEl.querySelectorAll(".peak-card").forEach((card) => {
+    card.addEventListener("pointerenter", () => activatePeak(card));
+    card.addEventListener("focus", () => activatePeak(card));
+    card.addEventListener("click", () => activatePeak(card));
+  });
 }
 
-function renderFieldSnapshot(peak) {
-  if (!peak?.top10?.length) {
-    dynastyFieldEl.innerHTML = `<div class="empty">Limited historical field data</div>`;
-    return;
-  }
-  const maxRating = Math.max(...peak.top10.map((player) => Number(player.rating)).filter(Number.isFinite));
-  dynastyFieldEl.innerHTML = peak.top10
-    .map((player) => {
-      const width = Number.isFinite(maxRating) ? Math.max(8, (Number(player.rating) / maxRating) * 100) : 0;
-      return `
-        <div class="field-row">
-          <span>${String(player.rank).padStart(2, "0")}</span>
-          <strong>${escapeHtml(player.player_name)}</strong>
-          <b>${formatRating(player.rating)} Elo</b>
-          <i style="--bar:${width}%"></i>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function renderDynastyRecords(selected) {
-  const period = selected.period || {};
-  const summary = selected.summary || {};
-  const peak = selected.peak_snapshot || {};
-  const averageGap = average((selected.points || []).map((point) => point.gap_to_top10_field));
-  dominanceEl.innerHTML = `
-    <div class="dominance-row">
-      <div>
-        <strong>${formatMonths(summary.longest_reign || period.months_at_number_one || 0)}</strong>
-        <span>longest uninterrupted monthly spell at Elo No.1</span>
-      </div>
-    </div>
-    <div class="dominance-row">
-      <div>
-        <strong>${formatMonths(summary.cumulative_months_at_number_one || 0)}</strong>
-        <span>cumulative time at Elo No.1 across all monthly reigns</span>
-      </div>
-    </div>
-    <div class="dominance-row">
-      <div>
-        <strong>${Number(summary.number_of_reigns || 0).toLocaleString()} reign${summary.number_of_reigns === 1 ? "" : "s"}</strong>
-        <span>separate monthly Elo No.1 intervals</span>
-      </div>
-    </div>
-    <div class="dominance-row">
-      <div>
-        <strong>${peak.gap_to_top10_field == null ? "Limited data" : `${signed(peak.gap_to_top10_field)} Elo`}</strong>
-        <span>peak advantage over the Top 10 field average</span>
-      </div>
-    </div>
-    <div class="dominance-row">
-      <div>
-        <strong>${Number.isFinite(averageGap) ? `${signed(averageGap)} Elo` : "Limited data"}</strong>
-        <span>average advantage over the Top 10 field during the selected reign</span>
-      </div>
-    </div>
-  `;
+function activatePeak(card) {
+  peaksEl.querySelectorAll(".peak-card").forEach((item) => {
+    item.classList.toggle("active", item === card);
+  });
 }
 
 function renderDynastySelectors(dynasties) {
   dynastySelectorEl.innerHTML = dynasties
     .map((profile) => dynastySelectorButton(profile, "dynasty-name"))
-    .join("");
-  dynastyStickySelectorEl.innerHTML = dynasties
-    .map((profile) => dynastySelectorButton(profile, "dynasty-sticky-name"))
     .join("");
   document.querySelectorAll("[data-dynasty-name]").forEach((button) => {
     button.addEventListener("click", () => selectDynasty(button.dataset.dynastyName));
@@ -573,28 +473,8 @@ function dynastySelectorButton(profile, className) {
   `;
 }
 
-function renderNextDynasty() {
-  const next = nextDynastyName();
-  if (!next) {
-    dynastyNextEl.hidden = true;
-    return;
-  }
-  dynastyNextEl.hidden = false;
-  dynastyNextTitleEl.textContent = next;
-  dynastyNextEl.textContent = `Explore ${next}`;
-}
-
 function findDynasty(playerName) {
   return state.dynastyCollection?.dynasties?.find((profile) => profile.player_name === playerName) || null;
-}
-
-function nextDynastyName() {
-  const dynasties = state.dynastyCollection?.dynasties || [];
-  if (!dynasties.length) {
-    return null;
-  }
-  const index = dynasties.findIndex((profile) => profile.player_name === state.dynastyPlayer);
-  return dynasties[(index + 1 + dynasties.length) % dynasties.length]?.player_name || null;
 }
 
 async function seedDefaultLegends() {
@@ -721,14 +601,6 @@ function splitName(name) {
   return `${escapeHtml(parts.slice(0, -1).join(" "))}<br>${escapeHtml(parts.at(-1))}`;
 }
 
-function average(values) {
-  const valid = values.filter(Number.isFinite);
-  if (!valid.length) {
-    return null;
-  }
-  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
-}
-
 function signed(value) {
   return `${value >= 0 ? "+" : ""}${Math.round(value)}`;
 }
@@ -826,36 +698,6 @@ function drawDynastyFieldChart(canvas, points) {
   drawLineChart(canvas, series, {
     empty: "No dynasty chart data",
     fillBetween: true,
-  });
-}
-
-function drawDynastyGapChart(canvas, points, baseline) {
-  const gapPoints = points
-    .map((point) => ({ x: Date.parse(point.date), y: point[baseline] }))
-    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-  drawLineChart(
-    canvas,
-    [{ label: `Gap vs ${baselineLabels[baseline]}`, color: "#946b34", width: 3, points: gapPoints }],
-    { empty: "No dominance gap data", zeroLine: true, fillToZero: true },
-  );
-}
-
-function drawDynastyComparison(canvas, comparison) {
-  const series = comparison.map((player, index) => ({
-    label: player.player_name,
-    color: palette[index % palette.length],
-    width: player.player_name === state.dynastyPlayer ? 3 : 2,
-    points: (player.points || [])
-      .map((point) => ({
-        x: Number(point.months_since_start),
-        y: point.gap_to_top10_field,
-      }))
-      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
-  }));
-  drawLineChart(canvas, series, {
-    empty: "No dynasty comparison data",
-    zeroLine: true,
-    xFormatter: (value) => `${Math.round(value / 12)}y`,
   });
 }
 
@@ -1112,6 +954,4 @@ function numericTicks(minX, maxX, width) {
 drawEmptyChart(compareChart, "Loading");
 drawEmptyChart(historyChart, "Select a player");
 drawEmptyChart(dynastyMainChart, "Loading");
-drawEmptyChart(dynastyGapChart, "Loading");
-drawEmptyChart(dynastyCompareChart, "Loading");
 refresh();
